@@ -5,7 +5,7 @@ from db import add_user, get_users
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
 bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
 name = None
-
+#это марина
 
 # \start
 @bot.message_handler(commands=['start'])
