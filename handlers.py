@@ -2,8 +2,10 @@ import telebot
 import re
 from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from datetime import date, datetime
 
-from db import  is_admin, add_admin, add_master
+
+from db import  is_admin, add_admin, add_master, add_service, add_service_master_price, add_appointments
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
 bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
@@ -142,4 +144,28 @@ def is_valid_phone_number(phone_number):
 # Добавить админа - введите нужные данные шоб добавить себя и в боте введите команду /admin
 @bot.message_handler(commands=['admin'])
 def admin(message):
-    add_admin('Марина', '89198345266', message.from_user.id)
+    add_admin('Татьяна', '89198345321', message.from_user.id)
+
+
+# Костыль на время, чтобы добавить услугу - введите нужные данные шоб добавить услугу и в боте введите команду /new_service
+@bot.message_handler(commands=['new_service'])
+def service(message):
+    add_service('Маникюр с покрытием дабл', 'Снятие, опил, маникюр, покраска')
+
+# Костыль на время, чтобы добавить мастера - введите нужные данные шоб добавить ненастоящего мастера и в боте введите команду /new_master
+@bot.message_handler(commands=['new_master'])
+def new_master(message):
+    add_master('Юнона', '89198345322', '5590353291')
+
+# Костыль на время, чтобы добавить стоимость услуги мастеров - введите нужные данные шоб добавить стоимость услуги мастеров и в боте введите команду /new_master
+@bot.message_handler(commands=['new_service_master_price'])
+def service_master_price(message):
+    add_service_master_price('1', '1', '1000')
+
+# Костыль на время, чтобы добавить записи - введите нужные данные шоб добавить записи и в боте введите команду /new_appointments
+@bot.message_handler(commands=['new_appointments'])
+def appointments(message):
+    today = date.today().isoformat()  # Преобразуем дату в ISO формат YYYY-MM-DD
+    now = datetime.now()
+    current_time = now.strftime("%H:%M")
+    add_appointments('123', '12', '1', '1', 1)  # Передаем правильные типы данных
