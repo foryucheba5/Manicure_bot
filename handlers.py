@@ -327,12 +327,12 @@ def appointments(message):
     now = datetime.now()
     current_time = now.strftime("%H:%M")
     client = None
-    add_appointments('2024-12-10', '12:00-14:10', '3', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-11', current_time, '3', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-12', current_time, '3', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-13', current_time, '2', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-14', current_time, '1', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-11-20', current_time, '3', client, '1')  # Передаем правильные типы данных
+    # add_appointments('2025-01-13', '12:00-14:00', '3', client, '1')  # Передаем правильные типы данных мастер варвара
+    add_appointments('2025-12-28', '14:00-16:00', '3', client, '1')  # Передаем правильные типы данных мастер ева
+    # add_appointments('2024-12-12', current_time, '3', client, '1')  # Передаем правильные типы данных
+    # add_appointments('2024-12-13', current_time, '2', client, '1')  # Передаем правильные типы данных
+    # add_appointments('2024-12-14', current_time, '1', client, '1')  # Передаем правильные типы данных
+    # add_appointments('2024-11-20', current_time, '3', client, '1')  # Передаем правильные типы данных
     # add_appointments(today, current_time, '2', client, '1')  # Передаем правильные типы данных
     print("Да")
 
@@ -428,23 +428,84 @@ def generate_master_keyboard(service_id):
     markup.add(types.InlineKeyboardButton("Назад", callback_data="back_to_services"))
     return markup
 
+# # Функция для генерации клавиатуры с доступными годами
+# def generate_year_keyboard():
+#     years = get_unique_active_years(service_master_price_id)
+#     markup = types.InlineKeyboardMarkup()
+#     for year in years:
+#         markup.add(types.InlineKeyboardButton(str(year), callback_data=f"year_{year}"))
+#     markup.add(types.InlineKeyboardButton("Назад", callback_data="back_to_masters"))
+#     return markup
+
 # Функция для генерации клавиатуры с доступными годами
-def generate_year_keyboard():
-    years = get_unique_active_years()
+def generate_year_keyboard(telegram_id):
+
+    # Извлекаем записи для данного telegram_id
+    records = data_storage.get(telegram_id, [])
+
+    if not records:
+        return None  # Или другой способ обработки отсутствия записей
+
+    # Берем первый элемент списка и извлекаем service_master_price_id
+    service_master_price_id = records[0].get('service_master_price_id')
+
+    if not service_master_price_id:
+        return None  # Или другой способ обработки отсутствия service_master_price_id
+
+    # Получаем уникальные доступные годы с учетом service_master_price_id
+    years = get_unique_active_years(service_master_price_id)
+
+    if not years:
+        return None  # Или другой способ обработки отсутствия подходящих годов
+
+    # Генерация клавиатуры
     markup = types.InlineKeyboardMarkup()
     for year in years:
         markup.add(types.InlineKeyboardButton(str(year), callback_data=f"year_{year}"))
     markup.add(types.InlineKeyboardButton("Назад", callback_data="back_to_masters"))
     return markup
 
+
+# # Функция для генерации клавиатуры с доступными месяцами
+# def generate_month_keyboard(telegram_id, year):
+#     months = get_unique_months_in_year(telegram_id,year)
+#     markup = types.InlineKeyboardMarkup()
+#     for month in months:
+#         markup.add(types.InlineKeyboardButton(month_to_str(month), callback_data=f"month_{month}_{year}"))
+#     markup.add(types.InlineKeyboardButton("Назад", callback_data="back_to_years"))
+#     return markup
+
+
+
 # Функция для генерации клавиатуры с доступными месяцами
-def generate_month_keyboard(year):
-    months = get_unique_months_in_year(year)
+def generate_month_keyboard(telegram_id, year):
+    # Извлекаем записи для данного telegram_id
+    records = data_storage.get(telegram_id, [])
+
+    if not records:
+        return None  # Или другой способ обработки отсутствия записей
+
+    # Берем первый элемент списка и извлекаем service_master_price_id
+    service_master_price_id = records[0].get('service_master_price_id')
+
+    if not service_master_price_id:
+        return None  # Или другой способ обработки отсутствия service_master_price_id
+
+    # Получаем уникальные доступные месяцы с учетом service_master_price_id
+    months = get_unique_months_in_year(service_master_price_id, year)
+
+    if not months:
+        return None  # Или другой способ обработки отсутствия подходящих месяцев
+
+    # Генерация клавиатуры
     markup = types.InlineKeyboardMarkup()
     for month in months:
         markup.add(types.InlineKeyboardButton(month_to_str(month), callback_data=f"month_{month}_{year}"))
     markup.add(types.InlineKeyboardButton("Назад", callback_data="back_to_years"))
     return markup
+
+
+
 
 # Вспомогательная функция для преобразования численного представления месяца в строку
 def month_to_str(month_number):
@@ -464,11 +525,79 @@ def month_to_str(month_number):
     }
     return months[month_number]
 
+# # Функция для генерации клавиатуры с доступными днями
+# def generate_day_keyboard(telegram_id, year, month):
+#     """ Генерирует клавиатуру с днями выбранного месяца, где доступны только указанные даты. :param year: Год. :param month: Месяц. :return: Объект InlineKeyboardMarkup с клавиатурой. """
+#     # Получение доступных дат из базы данных
+#     available_days = get_unique_days_in_month_and_year(service_master_price_id, year, month)
+#
+#     # Получаем количество дней в месяце и первый день недели
+#     days_in_month = calendar.monthrange(year, month)[1]
+#     first_weekday = calendar.monthrange(year, month)[0]
+#
+#     keyboard = []
+#     weekdays_row = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+#     keyboard.append(
+#         [InlineKeyboardButton(text=weekday, callback_data="none") for weekday in weekdays_row]
+#     )
+#
+#     row = []
+#     # Добавляем пустые кнопки для выравнивания первой недели
+#     for _ in range(first_weekday):
+#         row.append(InlineKeyboardButton(text=" ", callback_data="none"))
+#
+#     # Заполняем дни месяца
+#     for day in range(1, days_in_month + 1):
+#         if day in available_days:
+#             text = f"{day}"
+#             callback_data = str(datetime(year, month, day).date())
+#         else:
+#             text = " "
+#             callback_data = "none"
+#
+#         button = InlineKeyboardButton(text=text, callback_data=callback_data)
+#         row.append(button)
+#
+#         # Перенос на новую строку после каждой недели
+#         if (day + first_weekday) % 7 == 0:
+#             keyboard.append(row)
+#             row = []
+#
+#     # Если последний день месяца не завершает неделю, добавляем пустые кнопки
+#     remaining_days = (days_in_month + first_weekday) % 7
+#     if remaining_days != 0:
+#         for _ in range(7 - remaining_days):
+#             row.append(InlineKeyboardButton(text=" ", callback_data="none"))
+#         keyboard.append(row)
+#
+#     # Добавление кнопки "Назад"
+#     back_button = [InlineKeyboardButton(text="Назад", callback_data=f"back|{year}|{month}")]
+#     keyboard.append(back_button)
+#
+#     return InlineKeyboardMarkup(keyboard)
+
+
+
 # Функция для генерации клавиатуры с доступными днями
-def generate_day_keyboard(year, month):
-    """ Генерирует клавиатуру с днями выбранного месяца, где доступны только указанные даты. :param year: Год. :param month: Месяц. :return: Объект InlineKeyboardMarkup с клавиатурой. """
-    # Получение доступных дат из базы данных
-    available_days = get_unique_days_in_month_and_year(year, month)
+def generate_day_keyboard(telegram_id, year, month):
+    # Извлекаем записи для данного telegram_id
+    records = data_storage.get(telegram_id, [])
+
+    if not records:
+        return None  # Или другой способ обработки отсутствия записей
+
+    # Берем первый элемент списка и извлекаем service_master_price_id
+    service_master_price_id = records[0].get('service_master_price_id')
+
+    if not service_master_price_id:
+        return None  # Или другой способ обработки отсутствия service_master_price_id
+
+    # Получаем уникальные доступные дни с учетом service_master_price_id
+    available_days = get_unique_days_in_month_and_year(service_master_price_id, year, month)
+    print(available_days)
+    print(service_master_price_id)
+    print(year)
+    print(month)
 
     # Получаем количество дней в месяце и первый день недели
     days_in_month = calendar.monthrange(year, month)[1]
@@ -476,9 +605,7 @@ def generate_day_keyboard(year, month):
 
     keyboard = []
     weekdays_row = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-    keyboard.append(
-        [InlineKeyboardButton(text=weekday, callback_data="none") for weekday in weekdays_row]
-    )
+    keyboard.append([InlineKeyboardButton(text=weekday, callback_data="none") for weekday in weekdays_row])
 
     row = []
     # Добавляем пустые кнопки для выравнивания первой недели
@@ -488,7 +615,7 @@ def generate_day_keyboard(year, month):
     # Заполняем дни месяца
     for day in range(1, days_in_month + 1):
         if day in available_days:
-            text = f"{day}"
+            text = f"{day:02}"  # Преобразование числа в строку с ведущим нулем
             callback_data = str(datetime(year, month, day).date())
         else:
             text = " "
@@ -510,10 +637,13 @@ def generate_day_keyboard(year, month):
         keyboard.append(row)
 
     # Добавление кнопки "Назад"
-    back_button = [InlineKeyboardButton(text="Назад", callback_data=f"back|{year}|{month}")]
+    back_button = [InlineKeyboardButton(text="Назад", callback_data=f"back|{year}|{month:02}")]  # Также преобразуем месяц в строку с ведущим нулем
     keyboard.append(back_button)
 
     return InlineKeyboardMarkup(keyboard)
+
+
+
 
 
 # Генерация клавиатуры с временными интервалами
@@ -642,7 +772,7 @@ def process_master(call):
             "Выберите год:",
             call.message.chat.id,
             call.message.message_id,
-            reply_markup=generate_year_keyboard()
+            reply_markup=generate_year_keyboard(telegram_id)
         )
     else:
         bot.answer_callback_query(call.id, "Произошла ошибка. Попробуйте выбрать услугу заново.")
@@ -657,7 +787,7 @@ def handle_year_selection(call):
         f"Вы выбрали год: {year}",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=generate_month_keyboard(int(year)))
+        reply_markup=generate_month_keyboard(call.message.chat.id, int(year)))
 
 #Обработчик нажатия кнопок месяца
 @bot.callback_query_handler(func=lambda call: call.data.startswith('month_'))
@@ -667,7 +797,9 @@ def handle_month_selection(call):
         f"Вы выбрали месяц: {month_to_str(int(month))} {year}",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=generate_day_keyboard(int(year), int(month)))
+        reply_markup=generate_day_keyboard(call.message.chat.id, int(year), int(month)))
+
+
 
 
 # Обработчик нажатия кнопок дней
@@ -995,7 +1127,7 @@ def back_to_days(call):
         f"Выберите день в {month}/{year}:",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=generate_day_keyboard(year, month)
+        reply_markup=generate_day_keyboard(call.message.chat.id, year, month)
     )
 
 
@@ -1003,22 +1135,24 @@ def back_to_days(call):
 @bot.callback_query_handler(func=lambda call: 'back|' in call.data)
 def back_to_months(call):
     _, year, month = call.data.split('|')
+    telegram_id = call.message.chat.id
     bot.edit_message_text(
         f"Выберите месяц в {year} году:",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=generate_month_keyboard(int(year))
+        reply_markup=generate_month_keyboard(telegram_id, int(year))
     )
 
 
 # Обработчик нажатия кнопки "Назад" в списке месяцев
 @bot.callback_query_handler(func=lambda call: call.data == 'back_to_years')
 def back_to_years(call):
+    telegram_id = call.from_user.id
     bot.edit_message_text(
         "Выберите год:",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=generate_year_keyboard()
+        reply_markup=generate_year_keyboard(telegram_id)
     )
 
 

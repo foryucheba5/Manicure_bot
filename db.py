@@ -426,33 +426,77 @@ def get_service_master_price_id(service_id, name):
     result = cursor.fetchone()
     return result[0] if result else None
 
-#получение уникальных доступных годов
-def get_unique_active_years():
+# #получение уникальных доступных годов
+# def get_unique_active_years():
+#     conn = sqlite3.connect(DB_NEW)
+#     cursor = conn.cursor()
+#     cursor.execute(""" SELECT DISTINCT strftime('%Y', appointment_date) AS year FROM appointments WHERE IsActive = 1 """)
+#     rows = cursor.fetchall()
+#     unique_years = [int(row[0]) for row in rows]
+#     return sorted(unique_years)
+
+# получение уникальных доступных годов с учетом service_master_price_id
+def get_unique_active_years(service_master_price_id):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
-    cursor.execute(""" SELECT DISTINCT strftime('%Y', appointment_date) AS year FROM appointments WHERE IsActive = 1 """)
+    cursor.execute(""" SELECT DISTINCT strftime('%Y', appointment_date) AS year FROM appointments WHERE IsActive = 1 AND service_master_price_id = ? """, (service_master_price_id,))
     rows = cursor.fetchall()
     unique_years = [int(row[0]) for row in rows]
     return sorted(unique_years)
 
-#получение доступных месяцев
-def get_unique_months_in_year(year):
+
+
+# #получение доступных месяцев
+# def get_unique_months_in_year(year):
+#     conn = sqlite3.connect(DB_NEW)
+#     cursor = conn.cursor()
+#     cursor.execute(""" SELECT DISTINCT strftime('%m', appointment_date) AS month FROM appointments WHERE IsActive = 1 AND strftime('%Y', appointment_date) = ? """, (str(year),))
+#     rows = cursor.fetchall()
+#     unique_months = [int(row[0]) for row in rows]
+#     return sorted(unique_months)
+
+
+# получение уникальных доступных месяцев с учетом service_master_price_id
+def get_unique_months_in_year(service_master_price_id, year):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
-    cursor.execute(""" SELECT DISTINCT strftime('%m', appointment_date) AS month FROM appointments WHERE IsActive = 1 AND strftime('%Y', appointment_date) = ? """, (str(year),))
+    cursor.execute(
+        """SELECT DISTINCT strftime('%m', appointment_date) AS month FROM appointments WHERE IsActive = 1 AND strftime('%Y', appointment_date) = ? AND service_master_price_id = ?""",
+        (str(year), service_master_price_id)
+    )
     rows = cursor.fetchall()
     unique_months = [int(row[0]) for row in rows]
     return sorted(unique_months)
 
-#получение доступных дат
-def get_unique_days_in_month_and_year(year, month):
+
+
+# #получение доступных дат
+# def get_unique_days_in_month_and_year(service_master_price_id, year, month):
+#     conn = sqlite3.connect(DB_NEW)
+#     cursor = conn.cursor()
+#     cursor.execute(""" SELECT DISTINCT strftime('%d', appointment_date) AS day FROM appointments WHERE IsActive = 1 AND strftime('%Y', appointment_date) = ? AND strftime('%m', appointment_date) = ? """, (str(year), str(month)))
+#     rows = cursor.fetchall()
+#     unique_days = [int(row[0]) for row in rows]
+#     return sorted(unique_days)
+
+# получение уникальных доступных дней с учетом service_master_price_id
+def get_unique_days_in_month_and_year(service_master_price_id, year, month):
+    # Обрабатываем входные параметры, приводя их к строковому виду с ведущими нулями
+    year = f"{year:04}"  # Года всегда передаются в формате YYYY
+    month = f"{int(month):02}"  # Месяцы передаются в формате MM
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
-    cursor.execute(""" SELECT DISTINCT strftime('%d', appointment_date) AS day FROM appointments WHERE IsActive = 1 AND strftime('%Y', appointment_date) = ? AND strftime('%m', appointment_date) = ? """, (str(year), str(month)))
+    cursor.execute(
+        """SELECT DISTINCT strftime('%d', appointment_date) AS day FROM appointments WHERE IsActive = 1 AND strftime('%Y', appointment_date) = ? AND strftime('%m', appointment_date) = ? AND service_master_price_id = ?""",
+        (year, month, service_master_price_id)
+    )
     rows = cursor.fetchall()
     unique_days = [int(row[0]) for row in rows]
-    return sorted(unique_days)
 
+    print("Rows:", rows)  # Выводим сырые данные из базы данных
+    print("Unique Days:", unique_days)  # Выводим уникальный отсортированный список дней
+
+    return sorted(unique_days)
 
 #получение доступных временных интервалов для конкретной даты
 def get_available_times_for_date(appointment_date):
