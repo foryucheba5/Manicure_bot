@@ -1,6 +1,6 @@
 import sqlite3
 
-DB_NEW = 'nailBD.sql'
+DB_NEW = 'nailBD_1_9.sql'
 
 # подключение БД и создание её
 # подключение БД и создание её
@@ -496,4 +496,94 @@ def get_user_id_by_telegram_id(telegram_id):
         return result[0]
     else:
         return None  # Возвращаем None, если пользователь не найден
+
+# Изменение телеграммовсого id
+def update_telegram_id(user_id, new_telegram_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE id=?", (user_id,))
+    cursor.execute("UPDATE users SET telegram_id=? WHERE id=?", (new_telegram_id, user_id))
+    conn.commit()
+
+
+import sqlite3
+
+#имя мастера, название услуги и стоимость услуги по service_master_price_id
+def get_service_info_by_service_master_price_id(service_master_price_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    query = """
+    SELECT u.name, s.service_name, sm.price
+    FROM service_master_price AS sm
+    JOIN users AS u ON sm.master_id = u.id
+    JOIN services AS s ON sm.service_id = s.service_id
+    WHERE sm.service_master_price_id = ?
+    """
+    cursor.execute(query, (service_master_price_id,))
+    result = cursor.fetchone()
+
+    if result is None:
+        return "Запись с таким service_master_price_id не найдена."
+
+    name, service_name, price = result
+    return {
+        'name': name,
+        'service_name': service_name,
+        'price': price
+    }
+
+
+def get_user_info_by_id(user_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    query = "SELECT name, phone_number FROM users WHERE id = ?"
+    cursor.execute(query, (user_id,))
+    result = cursor.fetchone()
+
+    if result is None:
+        return "Пользователь с таким ID не найден."
+
+    name, phone_number = result
+    return {
+        'name': name,
+        'phone_number': phone_number
+    }
+
+
+def get_appointment_id_by_params(appointment_date, appointment_time, service_master_price_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    query = """ SELECT appointments_id FROM appointments WHERE appointment_date = ? AND appointment_time = ? AND service_master_price_id = ? AND IsActive = 1 """
+    cursor.execute(query, (appointment_date, appointment_time, service_master_price_id))
+    result = cursor.fetchone()
+
+    if result is None:
+        return "Назначение не найдено."
+
+    appointments_id = result[0]
+    return appointments_id
+
+
+def update_client_id_in_appointment(appointments_id, new_client_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    # Обновляем client_id для указанного назначения
+    cursor.execute("UPDATE appointments SET client_id = ?, IsActive = 0 WHERE appointments_id = ?", (new_client_id, appointments_id))
+    # Сохраняем изменения
+    conn.commit()
+    print("обновлено")
+
+
+
+def rename_user_info(telegram_id, name, phone_number):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    # SQL-запрос для обновления записи
+    sql = """UPDATE users SET name = ?, phone_number = ? WHERE telegram_id = ?"""
+    # Выполнение запроса с параметрами
+    cursor.execute(sql, (name, phone_number, telegram_id))
+    # Сохранение изменений
+    conn.commit()
+    conn.close()
+
 

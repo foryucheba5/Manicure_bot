@@ -3,7 +3,7 @@ import pprint
 import telebot
 import re
 from telebot import types
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from datetime import date, datetime
 import calendar
 from typing import Dict, List
@@ -12,7 +12,9 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     get_services, get_serv, get_master, edt_service_name, get_masters, del_service, edt_service_descr, master_in_serv, \
     edt_service_price, save_user_to_database, is_user_in_database, get_service_master_price_id, \
     get_available_times_for_date, get_unique_days_in_month_and_year, get_unique_months_in_year, get_unique_active_years, \
-    get_service_detail, get_available_services, get_user_id_by_telegram_id
+    get_service_detail, get_available_services, get_user_id_by_telegram_id, update_telegram_id, \
+    get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
+    update_client_id_in_appointment, rename_user_info
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
 bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
@@ -131,6 +133,7 @@ def callback(call):
         if ok:
             bot.send_message(call.message.chat.id, "Ты добавлена в бот \U0001F48B", reply_markup=markup)
             bot.register_next_step_handler(call.message, on_click)
+            print(call.from_user.id)
         else:
             bot.send_message(call.message.chat.id, "Что-то пошло не так...", reply_markup=markup)
             bot.register_next_step_handler(call.message, on_click)
@@ -160,7 +163,13 @@ def is_valid_phone_number(phone_number):
 # Добавить админа - введите нужные данные шоб добавить себя и в боте введите команду /admin
 @bot.message_handler(commands=['admin'])
 def admin(message):
-    add_admin('Тан', '89093314500', message.from_user.id)
+    add_admin('Танчи', '89883314500', message.from_user.id)
+    print("Да")
+
+# id
+@bot.message_handler(commands=['id'])
+def admin(message):
+    print(message.from_user.id)
 
 def print_services(message):
     markup = InlineKeyboardMarkup()
@@ -304,6 +313,13 @@ def del_serv(message):
 def new_master(message):
     add_master('Юнона', '89198345322', '5590353291')
 
+
+# Костыль на время
+@bot.message_handler(commands=['new_id'])
+def new_master(message):
+    update_telegram_id(4, 1110154291)
+
+
 # Костыль на время, чтобы добавить записи - введите нужные данные шоб добавить записи и в боте введите команду /new_appointments
 @bot.message_handler(commands=['new_appointments'])
 def appointments(message):
@@ -311,7 +327,15 @@ def appointments(message):
     now = datetime.now()
     current_time = now.strftime("%H:%M")
     client = None
-    add_appointments('2024-12-01', current_time, '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-10', '12:00-14:10', '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-11', current_time, '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-12', current_time, '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-13', current_time, '2', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-14', current_time, '1', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-11-20', current_time, '3', client, '1')  # Передаем правильные типы данных
+    # add_appointments(today, current_time, '2', client, '1')  # Передаем правильные типы данных
+    print("Да")
+
     #add_appointments(today, current_time, '2', client, '1')  # Передаем правильные типы данных
 
 
@@ -352,6 +376,25 @@ def generate_service_keyboard():
 
 
 
+# Создаем кнопку "Вернуться в главное меню"
+back_to_main_menu_button = types.KeyboardButton('Вернуться в главное меню')
+
+# Клавиатура с одной кнопкой
+no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(back_to_main_menu_button)
+
+
+# Функция для обработки возврата в главное меню
+def go_to_main_menu(message):
+    markup = main_panel(message)
+    bot.send_message(message.chat.id, 'Главное меню: выберите действие', reply_markup=markup)
+    bot.register_next_step_handler(message, on_click)
+
+
+# Обработчик нажатия кнопки "Вернуться в главное меню"
+@bot.message_handler(func=lambda message: message.text == 'Вернуться в главное меню')
+def return_to_main_menu(message):
+    go_to_main_menu(message)
+
 def show_services(chat_id):
     available_services = get_available_services()
     if len(available_services) > 0:
@@ -360,7 +403,11 @@ def show_services(chat_id):
         bot.send_message(chat_id, f"Доступные услуги:\n{service_list}")
         bot.send_message(chat_id, "Выберите услугу:", reply_markup=generate_service_keyboard())
     else:
-        bot.send_message(chat_id, "Нет доступных услуг.")
+        no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(types.KeyboardButton('Вернуться в главное меню'))
+        bot.send_message(chat_id, "Нет доступных услуг.", reply_markup=no_services_keyboard)
+
+
+
 
 
 
@@ -485,6 +532,39 @@ def generate_time_keyboard(appointment_date):
     return InlineKeyboardMarkup(keyboard)
 
 
+
+def format_date(year, month, day):
+    return f'{day}.{month}.{year}'
+
+def generate_confirmation_message(user_id, appointment_date, appointment_time):
+    client_id = data_storage[user_id][0]['client_id']
+    user_info = get_user_info_by_id(client_id)
+    name = user_info['name']
+    phone_number = user_info['phone_number']
+    service_master_price_id = data_storage[user_id][0]['service_master_price_id']
+    service_info = get_service_info_by_service_master_price_id(service_master_price_id)
+    service_name = service_info['service_name']
+    master_name = service_info['name']
+    price = service_info['price']
+
+    formatted_date = format_date(*appointment_date.split('-'))
+
+    text = (
+        f"Пожалуйста, подтвердите запись и проверьте корректность Ваших данных:"
+        f"\nДата: {formatted_date}\nВремя: {appointment_time}\nМастер: {master_name}\nУслуга: {service_name}\nСтоимость: {price}₽\nВаше имя: {name}\nВаш номер телефона: {phone_number}"
+    )
+    keyboard = InlineKeyboardMarkup()
+    confirm_button = InlineKeyboardButton(text="Подтвердить", callback_data=f"confirm_{user_id}")
+    cancel_button = InlineKeyboardButton(text="Отменить", callback_data=f"cancel_{user_id}")
+    edit_info_button = InlineKeyboardButton(text="Изменить информацию о себе", callback_data=f"edit_info_{user_id}")
+    keyboard.row(confirm_button, cancel_button)
+    keyboard.add(edit_info_button)
+    return text, keyboard
+
+
+# Функция для генерации пустого макета
+def generate_empty_layout():
+    return "", ReplyKeyboardRemove()
 
 
 
@@ -660,7 +740,6 @@ def select_time(call):
         # Получаем client_id через функцию get_user_id_by_telegram_id
         client_id = get_user_id_by_telegram_id(user_id)
 
-
         # Если запись найдена, обновляем её
         if found_index is not None:
             data_storage[user_id][found_index]['client_id'] = client_id
@@ -673,16 +752,153 @@ def select_time(call):
                 "client_id": client_id
             })
 
+        # Генерируем сообщение с подтверждением записи
+        confirmation_text, confirmation_keyboard = generate_confirmation_message(
+            user_id, appointment_date, selected_time
+        )
 
-        # Формируем итоговое сообщение с выбранным временем
-        date_str = f"{user_dates[user_id]['year']}-{user_dates[user_id]['month']}-{user_dates[user_id]['day']}"
-        bot.edit_message_text(f"Вы выбрали время: {date_str} {selected_time}", chat_id, call.message.message_id)
+        # Отправляем сообщение с подтверждением
+        bot.edit_message_text(
+            text=confirmation_text,
+            chat_id=chat_id,
+            message_id=call.message.message_id,
+            reply_markup=confirmation_keyboard
+        )
 
         # Вывод данных в консоль
         pprint.pprint(data_storage)
 
 
 
+
+
+# Обработчик нажатия кнопки подтверждения
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_"))
+def confirm_appointment(call):
+    user_id = int(call.data.split("_")[1])
+    chat_id = call.message.chat.id
+
+    # Находим запись в data_storage
+    found_record = next((record for record in data_storage[user_id] if record['telegram_id'] == user_id), None)
+
+    if found_record:
+        # Подтверждение записи
+        appointment_date = found_record['appointment_date']
+        appointment_time = found_record['appointment_time']
+        service_master_price_id = found_record['service_master_price_id']
+        client_id = found_record.get('client_id')
+
+        # Получаем appointments_id
+        appointments_id = get_appointment_id_by_params(appointment_date, appointment_time, service_master_price_id)
+
+        if appointments_id != "Назначение не найдено.":
+            # Выводим данные в консоль
+            print(f"appointments_id: {appointments_id}, appointment_date: {appointment_date}, "
+                  f"appointment_time: {appointment_time}, service_master_price_id: {service_master_price_id}, "
+                  f"client_id: {client_id}")
+
+            update_client_id_in_appointment(appointments_id, client_id)
+
+            # Логика завершения записи
+            final_message = f"Ваша запись на {appointment_date} в {appointment_time} подтверждена!"
+            bot.edit_message_text(final_message, chat_id, call.message.message_id)
+            bot.edit_message_text("Благодарим, Вас!", call.message.chat.id, call.message.message_id, reply_markup=None)
+            bot.send_message(call.message.chat.id, "Возврат в главное меню", reply_markup=main_panel(call.message))
+            bot.register_next_step_handler(call.message, on_click)
+
+            # Очистка временной информации
+            del user_dates[user_id]
+        else:
+            bot.answer_callback_query(call.id, "Не удалось найти подходящее назначение.", show_alert=True)
+    else:
+        bot.answer_callback_query(call.id, "Ошибка подтверждения записи.", show_alert=True)
+
+
+
+
+# Обработчик нажатия на кнопку "Изменить информацию о себе"
+@bot.callback_query_handler(func=lambda call: call.data.startswith('edit_info_'))
+def handle_edit_info(call):
+    user_id = int(re.search(r'\d+', call.data).group())
+    chat_id = call.message.chat.id
+
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        text="Пожалуйста, введите ваше имя:",
+        parse_mode='HTML'
+    )
+
+    bot.register_next_step_handler_by_chat_id(chat_id, handle_name_input_rename)
+
+# Обработчик ввода имени
+def handle_name_input_rename(message):
+    name = message.text.strip()
+    chat_id = message.chat.id
+
+    # Валидируем имя
+    if not is_valid_name(name):
+        bot.send_message(chat_id, "Имя должно содержать только буквы кириллицы. Пожалуйста, попробуйте снова:")
+        bot.register_next_step_handler_by_chat_id(chat_id, handle_name_input_rename)
+        return
+
+    # Запрос номера телефона
+    bot.send_message(chat_id, "Пожалуйста, введите ваш номер телефона:")
+    bot.register_next_step_handler_by_chat_id(chat_id, handle_phone_input_rename, name=name)
+
+# Обработчик ввода номера телефона
+def handle_phone_input_rename(message, name):
+    phone_number = message.text.strip()
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    if not is_valid_phone_number(phone_number):
+        bot.send_message(chat_id, "Номер телефона введен неверно. Пожалуйста, попробуйте снова:")
+        bot.register_next_step_handler_by_chat_id(chat_id, handle_phone_input_rename, name=name)
+        return
+
+    # Логика изменения имени и номера телефона пользователя в базе данных
+    rename_user_info(user_id, name, phone_number)
+
+    # После успешного сохранения получаем client_id
+    client_id = get_user_id_by_telegram_id(user_id)
+
+    # Вносим client_id в словарь data_storage
+    if user_id not in data_storage:
+        data_storage[user_id] = [{"client_id": client_id}]
+    else:
+        # Если запись уже существует, обновляем client_id во всех записях
+        for entry in data_storage[user_id]:
+            entry["client_id"] = client_id
+
+    bot.send_message(chat_id, f"Спасибо, {name}, ваш профиль успешно создан!")
+
+    # Генерируем сообщение с подтверждением записи
+    confirmation_text, confirmation_keyboard = generate_confirmation_message(
+        user_id, data_storage[user_id][0]['appointment_date'], data_storage[user_id][0]['appointment_time']
+    )
+
+    # Отправляем сообщение с подтверждением
+    bot.send_message(chat_id, confirmation_text, reply_markup=confirmation_keyboard)
+
+    # Вывод данных в консоль
+    pprint.pprint(data_storage)
+
+
+
+# Обработчик нажатия кнопки отмены
+@bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_"))
+def cancel_appointment(call):
+    user_id = int(call.data.split("_")[1])
+    chat_id = call.message.chat.id
+
+    # Отмена записи
+    bot.edit_message_text("Выбор отменен.", call.message.chat.id, call.message.message_id, reply_markup=None)
+    bot.send_message(call.message.chat.id, "Что-то еще?", reply_markup=main_panel(call.message))
+    bot.register_next_step_handler(call.message, on_click)
+
+    # Очистка временной информации
+    del user_dates[user_id]
 
 
 
@@ -695,6 +911,9 @@ def handle_name_input(message):
     name = message.text.strip()
     chat_id = message.chat.id
     user_id = message.from_user.id
+
+    # Генерируем пустой макет
+    empty_text, empty_keyboard = generate_empty_layout()
 
     if not is_valid_name(name):
         bot.send_message(chat_id, "Имя должно содержать только буквы кириллицы. Пожалуйста, попробуйте снова:")
@@ -733,9 +952,17 @@ def handle_phone_input(message, name):
             entry["client_id"] = client_id
 
     bot.send_message(chat_id, f"Спасибо, {name}, ваш профиль успешно создан!")
+
+    # Генерируем сообщение с подтверждением записи
+    confirmation_text, confirmation_keyboard = generate_confirmation_message(
+        user_id, data_storage[user_id][0]['appointment_date'], data_storage[user_id][0]['appointment_time']
+    )
+
+    # Отправляем сообщение с подтверждением
+    bot.send_message(chat_id, confirmation_text, reply_markup=confirmation_keyboard)
+
     # Вывод данных в консоль
     pprint.pprint(data_storage)
-
 
 
 
@@ -855,3 +1082,24 @@ user_dates = {}
 
 # Глобальная переменная для хранения данных
 data_storage: Dict[int, List[Dict[str, str]]] = {}
+
+
+def extract_and_get_appointment_id(data_storage, key):
+    for entry in data_storage[key]:
+        appointment_date = entry["appointment_date"]
+        appointment_time = entry["appointment_time"]
+        service_master_price_id = entry["service_master_price_id"]
+
+        # Получаем appointments_id
+        appointments_id = get_appointment_id_by_params(appointment_date, appointment_time,
+                                                       service_master_price_id)
+
+        return appointments_id
+    return "Нет подходящих записей."
+
+def extract_client_id_from_data_storage(data_storage, key):
+    try:
+        return data_storage[key][0]['client_id']
+    except (KeyError, IndexError):
+        return None
+
