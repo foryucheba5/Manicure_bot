@@ -75,19 +75,6 @@ def init_db():
         print("Роли успешно добавлены")
     else:
         print("Роли уже существуют в базе данных")
-    conn.commit()
-    cur.close()
-    conn.close()
-    #просмотр содержания таблицы users
-    a('users')
-    # просмотр содержания таблицы roles
-    a('roles')
-    # просмотр содержания таблицы services
-    a('services')
-    # просмотр содержания таблицы service_master_price
-    a('service_master_price')
-    # просмотр содержания таблицы appointments
-    a('appointments')
 
 #посмотреть содержание таблиц
 def a(table_name):
@@ -146,7 +133,55 @@ def add_service(service_name, description):
         (service_name, description)
     )
     conn.commit()
+    service_id = cursor.lastrowid
     conn.close()
+    return service_id
+
+def edt_service_name(service_id, service_name):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE services SET service_name = ? WHERE service_id = ?",
+        (service_name, service_id)
+    )
+    conn.commit()
+    conn.close()
+
+def edt_service_descr(service_id, service_descr):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE services SET description = ? WHERE service_id = ?",
+        (service_descr, service_id)
+    )
+    conn.commit()
+    conn.close()
+
+def master_in_serv(service_id, master_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT service_master_price_id FROM service_master_price WHERE service_id = ? AND master_id = ?",
+        (service_id, master_id)
+    )
+    master_in = cursor.fetchone()
+    conn.close()
+
+    if master_in:
+        return True
+    else:
+        return False
+
+def edt_service_price(service_id, master_id, price):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE service_master_price SET price = ? WHERE service_id = ? AND master_id = ?",
+        (price, service_id, master_id)
+    )
+    conn.commit()
+    conn.close()
+
 
 # Добавление стоимости услуги мастеров
 def add_service_master_price(service_id, master_id, price):
@@ -198,6 +233,47 @@ def get_master_role_id():
     master_role_id = cursor.fetchone()
     conn.close()
     return master_role_id[0] if master_role_id else None
+
+def get_services():
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    # Извлекаем все услуги из таблицы services
+    cursor.execute("SELECT service_id, service_name FROM services")
+    services = cursor.fetchall()
+    conn.close()
+    return services
+
+def get_serv(serv_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute("SELECT s.description, p.price, p.master_id FROM services AS s "
+                   "JOIN service_master_price AS p ON s.service_id = p.service_id "
+                   "WHERE s.service_id = ?", (serv_id))
+    serv = cursor.fetchall()
+    conn.close()
+    return serv
+
+def get_master(master_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM users WHERE id = ?", (master_id))
+    master_name = cursor.fetchone()
+    conn.close()
+    return master_name[0] if master_name else None
+
+def get_masters():
+    master_role_id = get_master_role_id()
+    if master_role_id is None:
+        return "Роль 'Мастер' не найдена. Пожалуйста, добавьте роль в таблицу roles."
+
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM users WHERE role_id = (SELECT id FROM roles WHERE role_name = 'Master')")
+    masters = cursor.fetchall()
+    conn.close()
+    return masters
+
 
 #чекнуть структуры бд
 def check():
