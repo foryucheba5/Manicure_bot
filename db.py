@@ -1,6 +1,6 @@
 import sqlite3
 
-DB_NEW = 'nailBD_1_9.sql'
+DB_NEW = 'nailBD.sql'
 
 # подключение БД и создание её
 # подключение БД и создание её
@@ -201,7 +201,7 @@ def edt_service_price(service_id, master_id, price):
 # Добавление стоимости услуги мастеров
 def add_service_master_price(service_id, master_id, price):
     conn = sqlite3.connect(DB_NEW)
-    conn.execute("PRAGMA foreign_keys = ON")
+    # conn.execute("PRAGMA foreign_keys = ON") потом убрать комм
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO service_master_price (service_id, master_id, price) VALUES (?, ?, ?)",
@@ -631,3 +631,28 @@ def rename_user_info(telegram_id, name, phone_number):
     conn.close()
 
 
+def get_user_id_by_telegram_id_show(telegram_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    query = "SELECT id FROM users WHERE telegram_id = ?"
+    cursor.execute(query, (telegram_id,))
+    result = cursor.fetchone()
+
+    if result is None:
+        return None
+
+    return result[0]
+
+    conn.close()
+
+
+def get_appointments_by_client_id_show(client_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    query = """ SELECT a.appointment_date, a.appointment_time, s.service_name, sm.price, u.name AS client_name, m.name AS master_name FROM appointments a JOIN service_master_price sm ON a.service_master_price_id = sm.service_master_price_id JOIN services s ON sm.service_id = s.service_id JOIN users u ON a.client_id = u.id JOIN users m ON sm.master_id = m.id WHERE a.client_id = ? """
+    cursor.execute(query, (client_id,))
+    results = cursor.fetchall()
+    print(results)
+    return results
+
+    conn.close()

@@ -14,7 +14,8 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     get_available_times_for_date, get_unique_days_in_month_and_year, get_unique_months_in_year, get_unique_active_years, \
     get_service_detail, get_available_services, get_user_id_by_telegram_id, update_telegram_id, \
     get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
-    update_client_id_in_appointment, rename_user_info
+    update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
+    get_appointments_by_client_id_show
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
 bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
@@ -70,8 +71,7 @@ def on_click(message):
     if message.text == 'Посмотреть окна записи':
         show_services(message.chat.id)
     elif message.text == 'Посмотреть сведения о своей записи':
-        bot.send_message(message.chat.id, 'Сведения о записи открылись')
-        bot.register_next_step_handler(message, on_click)
+        show_services_client(message)  # Также передаем весь объект message
     elif message.text == 'Обратиться к админстратору':
         bot.send_message(message.chat.id, 'Администратор оповещён')
         bot.register_next_step_handler(message, on_click)
@@ -163,8 +163,13 @@ def is_valid_phone_number(phone_number):
 # Добавить админа - введите нужные данные шоб добавить себя и в боте введите команду /admin
 @bot.message_handler(commands=['admin'])
 def admin(message):
-    add_admin('Танчи', '89883314500', message.from_user.id)
-    print("Да")
+    add_admin('Елизавета', '89883314500', message.from_user.id)
+
+
+@bot.message_handler(commands=['bez_master'])
+def bez_master(message):
+    add_service_master_price('3', '9', '1000')
+
 
 # id
 @bot.message_handler(commands=['id'])
@@ -405,6 +410,42 @@ def show_services(chat_id):
     else:
         no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(types.KeyboardButton('Вернуться в главное меню'))
         bot.send_message(chat_id, "Нет доступных услуг.", reply_markup=no_services_keyboard)
+
+
+def show_services_client(message):
+    id_telegram = message.chat.id  # Получаем Telegram ID
+    client_id = get_user_id_by_telegram_id_show(id_telegram)  # Получаем client_id по Telegram ID
+
+    if client_id is None:
+        bot.send_message(message.chat.id, "Пользователь не найден.")
+        return
+
+    appointments = get_appointments_by_client_id_show(client_id)  # Получаем записи для клиента
+
+    if not appointments:
+        no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(
+            types.KeyboardButton('Вернуться в главное меню'))
+        bot.send_message(message.chat.id, "Нет доступных услуг.", reply_markup=no_services_keyboard)
+        return
+
+        # Формируем сообщение с услугами
+    services_message = ""
+    for index, appointment in enumerate(appointments, start=1):  # Добавляем индексацию записей
+        appointment_date, appointment_time, service_name, price, client_name, master_name = appointment
+        services_message += (f"Запись {index}\n"
+                             f"Услуга: {service_name}\n"
+                             f"Мастер: {master_name}\n"
+                             f"Стоимость: {price} руб.\n"
+                             f"Дата: {appointment_date}\n"
+                             f"Время: {appointment_time}\n\n")  # Двойной перенос строки между записями
+
+    bot.send_message(message.chat.id, services_message.strip())  # Убираем лишний пробел в конце
+
+
+
+
+
+
 
 
 
