@@ -15,7 +15,7 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     get_service_detail, get_available_services, get_user_id_by_telegram_id, update_telegram_id, \
     get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
     update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
-    get_appointments_by_client_id_show
+    get_appointments_by_client_id_show,del_user
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
 bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
@@ -24,6 +24,7 @@ name = None
 btn1 = types.KeyboardButton('Посмотреть окна записи')
 btn2 = types.KeyboardButton('Посмотреть сведения о своей записи')
 btn4 = types.KeyboardButton('Админ-панель')
+
 
 user_states = {}
 STATES = {
@@ -80,10 +81,15 @@ def on_click(message):
         btn_master = types.KeyboardButton('Добавить нового мастера')
         btn_services = types.KeyboardButton('Каталог услуг')
         btn_exit = types.KeyboardButton('В главное меню')
+        btn5 = types.KeyboardButton('Cоздание графика работы мастера')
         markup_admin.add(btn_master)
         markup_admin.add(btn_services)
+        markup_admin.add(btn5)
         markup_admin.add(btn_exit)
         bot.send_message(message.chat.id, 'Панель адмнистратора: выберите действие', reply_markup=markup_admin)
+        bot.register_next_step_handler(message, on_click)
+    elif message.text == 'Cоздание графика работы мастера':
+        bot.send_message(message.chat.id, '...')
         bot.register_next_step_handler(message, on_click)
     elif message.text == 'В главное меню':
         markup = main_panel(message)
@@ -128,7 +134,14 @@ def callback(call):
     if chat_id in user_states:
         n = user_states[chat_id]["data"]["name"]
         number = user_states[chat_id]["data"]["number"]
-        ok = add_master(n,number, call.from_user.id)
+        ok = add_master(n, number, call.from_user.id)
+        add_service_master_price('1', '5', '2000')
+        client = None
+        add_appointments('2024-12-11', '12:00-14:00', '4', client, '1')  # Передаем правильные типы данных
+        add_appointments('2024-12-11', '14:00-15:00', '4', client, '1')  # Передаем правильные типы данных
+        add_appointments('2024-12-10', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
+        add_appointments('2024-12-09', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
+        add_appointments('2024-12-08', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
         markup = main_panel(call.message)
         if ok:
             bot.send_message(call.message.chat.id, "Ты добавлена в бот \U0001F48B", reply_markup=markup)
@@ -168,7 +181,7 @@ def admin(message):
 
 @bot.message_handler(commands=['bez_master'])
 def bez_master(message):
-    add_service_master_price('3', '9', '1000')
+    add_service_master_price('1', '3', '2000')
 
 
 # id
@@ -333,8 +346,12 @@ def appointments(message):
     current_time = now.strftime("%H:%M")
     client = None
     # add_appointments('2025-01-13', '12:00-14:00', '3', client, '1')  # Передаем правильные типы данных мастер варвара
-    add_appointments('2025-12-28', '14:00-16:00', '3', client, '1')  # Передаем правильные типы данных мастер ева
-    # add_appointments('2024-12-12', current_time, '3', client, '1')  # Передаем правильные типы данных
+    #add_appointments('2025-12-28', '18:00-20:00', '1', client, '1')  # Передаем правильные типы данных мастер ева
+    add_appointments('2024-12-11', '12:00-14:00', '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-11', '14:00-15:00', '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-10', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-09', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
+    add_appointments('2024-12-08', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
     # add_appointments('2024-12-13', current_time, '2', client, '1')  # Передаем правильные типы данных
     # add_appointments('2024-12-14', current_time, '1', client, '1')  # Передаем правильные типы данных
     # add_appointments('2024-11-20', current_time, '3', client, '1')  # Передаем правильные типы данных
