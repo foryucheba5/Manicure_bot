@@ -15,7 +15,7 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     get_service_detail, get_available_services, get_user_id_by_telegram_id, update_telegram_id, \
     get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
     update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
-    get_appointments_by_client_id_show, del_user, get_appointments
+    get_appointments_by_client_id_show, del_user, get_appointments, get_user_telegram_ids, check_free_app_for_month_year
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
 bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
@@ -84,9 +84,11 @@ def on_click(message):
         btn_services = types.KeyboardButton('Каталог услуг')
         btn_exit = types.KeyboardButton('В главное меню')
         btn5 = types.KeyboardButton('Cоздание графика работы мастера')
+        btn6 = types.KeyboardButton('Отправить клиентам оповещение об открытии записи')
         markup_admin.add(btn_master)
         markup_admin.add(btn_services)
         markup_admin.add(btn5)
+        markup_admin.add(btn6)
         markup_admin.add(btn_exit)
         bot.send_message(message.chat.id, 'Панель адмнистратора: выберите действие', reply_markup=markup_admin)
         bot.register_next_step_handler(message, on_click)
@@ -104,6 +106,10 @@ def on_click(message):
         bot.register_next_step_handler(message, on_click)
     elif message.text == 'Каталог услуг':
         print_services(message)
+    elif message.text == 'Отправить клиентам оповещение об открытии записи':
+        markup = types.ReplyKeyboardRemove()
+        bot.send_message(message.chat.id, "Отправка оповещения клиентам", reply_markup=markup)
+        send_notification_client(message)
 
 # Обработчик для диалога при добавлении мастера
 @bot.message_handler(func=lambda message: message.chat.id in user_states)
@@ -1305,7 +1311,7 @@ def extract_client_id_from_data_storage(data_storage, key):
 # Шаг 1 - показываем месяца
 def show_month(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "Выберите месяц для создания окон", reply_markup=create_month_keyboard())
+    bot.send_message(chat_id, "Выберите месяц для создания окон", reply_markup=create_month_keyboard(""))
 
 # Шаг 2 - показываем мастеров
 def show_masters(message, y, m):
@@ -1368,7 +1374,7 @@ def handle_return_selection(call):
         show_options(call.message, name_m, id_m, y, m)
 
 # Функция для создания клавиатуры с месяцами
-def create_month_keyboard():
+def create_month_keyboard(prefix):
     markup = types.InlineKeyboardMarkup()
     today = date.today()
 
@@ -1377,7 +1383,7 @@ def create_month_keyboard():
         month_name = month_to_str(future_date.month) + " "+ future_date.strftime("%Y")  # Название месяца и год, например: "November 2024"
         month_data = future_date.strftime("%Y") + "-" + str(future_date.month)  # Данные для callback, например: "2024-11"
 
-        markup.add(types.InlineKeyboardButton(month_name, callback_data=f"schMonth_{month_data}"))
+        markup.add(types.InlineKeyboardButton(month_name, callback_data=f"{prefix}schMonth_{month_data}"))
     markup.add(types.InlineKeyboardButton(text="В главное меню", callback_data="main"))
     return markup
 
@@ -1447,4 +1453,52 @@ def check_all_default_slots_for_master(id_master, y, m):
     return free_days
 
 # Занесение расписания работы - конец
+########################################################
+
+########################################################
+# Отправка клиентам уведомления об открытии записи - начало
+#Шаг 1 - выбор месяца
+def send_notification_client(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "На какой месяц открылась запись?", reply_markup=create_month_keyboard("ntf"))
+
+#Шаг 2 - Получаем id клиентов и отправляем каждому сообщение
+def get_ids_and_send(message, y, m):
+    chat_id = message.chat.id
+    name_month = month_to_str(m)
+    text = f"Уважаемые клиенты!\nСообщаем, что запись на {name_month} {y} открыта.\nС любовью, ваша студия Nailove <3"
+    ids = get_user_telegram_ids()
+    count_error = 0
+    if ids:
+        for i in ids:
+            try:
+                bot.send_message(chat_id=i, text=text)
+                print(f"Сообщение успешно отправлено!{i}")
+            except telebot.apihelper.ApiTelegramException as e:
+                print(f"Ошибка при отправке сообщения {i}: {e}")
+                count_error+=1
+    else:
+        count_error+=1
+
+    markup = InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton(text="В главное меню", callback_data="main"))
+    if count_error == 0:
+        bot.send_message(chat_id, f"Уведомления об открытии записи на {name_month} {y} успешно отправлены", reply_markup=markup)
+    else:
+        bot.send_message(chat_id, "Произошла ошибка. Обратитесь к разработчику.", reply_markup=markup)
+
+
+#Нажатие на кнопку месяца
+@bot.callback_query_handler(func=lambda call: call.data.startswith("ntfschMonth_"))
+def handle_month_ntf_selection(call):
+    _, date_string = call.data.split('_')  # Распаковка данных
+    y, m = date_string.split('-')  # Разделяем на год и месяц
+    #проверим что на этот месяц есть хотя бы одно свободное окно
+    res = check_free_app_for_month_year(int(m), int(y))
+    if res:
+        get_ids_and_send(call.message, int(y), int(m))
+    else:
+        bot.send_message(call.message.chat.id, "На данный месяц нет ни одного свободного окна. Выберите другой")
+
+# Отправка клиентам уведомления об открытии записи - конец
 ########################################################

@@ -238,6 +238,39 @@ def get_appointments(id_master, appointment_date, appointment_time):
     conn.close()
     return result
 
+
+def check_free_app_for_month_year(month, year):
+    """
+    Проверяет, есть ли хотя бы одно свободное окно на указанный месяц и год.
+
+    :param month: месяц в виде числа (1-12)
+    :param year: год в виде числа (например, 2024)
+    :return: True, если строки есть, иначе False
+    """
+    try:
+        # Подключаемся к базе данных
+        conn = sqlite3.connect(DB_NEW)
+        cursor = conn.cursor()
+
+        # Форматируем месяц с нулем в начале (например, 01, 02...)
+        month_str = f"{month:02d}"
+
+        # SQL-запрос для проверки наличия строк
+        cursor.execute(
+            "SELECT 1 FROM appointments WHERE appointment_date LIKE ? AND IsActive = 1 LIMIT 1",
+            (f"{year}-{month_str}%",)
+        )
+
+        # Если результат есть, значит строки найдены
+        return cursor.fetchone() is not None
+
+    except sqlite3.Error as e:
+        print(f"Ошибка при работе с базой данных: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # Функция для проверки, является ли пользователь администратором
 def is_admin(telegram_id):
     conn = sqlite3.connect(DB_NEW)
@@ -565,6 +598,33 @@ def update_telegram_id(user_id, new_telegram_id):
     cursor.execute("UPDATE users SET telegram_id=? WHERE id=?", (new_telegram_id, user_id))
     conn.commit()
 
+
+def get_user_telegram_ids():
+    """
+    Возвращает список Telegram ID всех пользователей с ролью 'user' (role_id = 2).
+    """
+    telegram_ids = []
+    try:
+        # Подключаемся к базе данных
+        conn = sqlite3.connect(DB_NEW)
+        cursor = conn.cursor()
+
+        # SQL-запрос для получения пользователей с role_id = 2
+        cursor.execute("SELECT telegram_id FROM users WHERE role_id = ?", (2,))
+
+        # Получаем все результаты
+        rows = cursor.fetchall()
+
+        # Извлекаем только Telegram ID
+        telegram_ids = [row[0] for row in rows if row[0] is not None]
+
+    except sqlite3.Error as e:
+        print(f"Ошибка при работе с базой данных: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+    return telegram_ids
 
 import sqlite3
 
