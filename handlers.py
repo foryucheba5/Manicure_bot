@@ -4,7 +4,7 @@ import telebot
 import re
 from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
-from datetime import date, datetime
+from datetime import date, timedelta, datetime
 import calendar
 from typing import Dict, List
 
@@ -15,7 +15,7 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     get_service_detail, get_available_services, get_user_id_by_telegram_id, update_telegram_id, \
     get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
     update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
-    get_appointments_by_client_id_show,del_user
+    get_appointments_by_client_id_show, del_user, get_appointments
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
 bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
@@ -38,10 +38,12 @@ SERV_DESCRIPTION = {}
 SERV_ID_ADD = {}
 MASTER_ID = {}
 
+apps = ["9:00-11:00", "11:00-13:00", "14:00-16:00", "16:00-18:00"]
+
 #главная менюшка на клавиатуре
-def main_panel(message):
+def main_panel(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    admin_is = is_admin(message.from_user.id)
+    admin_is = is_admin(user_id)
     # Создание кнопок
     if admin_is:
         markup.add(btn1)
@@ -62,7 +64,7 @@ def start(message):
             bot.send_message(message.chat.id,"""Привет, красотка \U0001F929 Давай добавим тебя в наш бот \U0001F485 \nТвой номер телефона и профиль не будет доступен для клиентов \U0001F497""")
             bot.send_message(message.chat.id, "Отправь мне своё имя")
     else:
-        markup = main_panel(message)
+        markup = main_panel(message.from_user.id)
         # Вывод текста при выполнении комманды \start
         bot.send_message(message.chat.id, 'Привет!', reply_markup=markup) # Вывод сообщения и макета с кнопками
         bot.register_next_step_handler(message, on_click) # Для обработки кнопок
@@ -89,10 +91,11 @@ def on_click(message):
         bot.send_message(message.chat.id, 'Панель адмнистратора: выберите действие', reply_markup=markup_admin)
         bot.register_next_step_handler(message, on_click)
     elif message.text == 'Cоздание графика работы мастера':
-        bot.send_message(message.chat.id, '...')
-        bot.register_next_step_handler(message, on_click)
+        markup = types.ReplyKeyboardRemove()
+        bot.send_message(message.chat.id, "Создание графика работы", reply_markup=markup)
+        show_month(message)
     elif message.text == 'В главное меню':
-        markup = main_panel(message)
+        markup = main_panel(message.from_user.id)
         bot.send_message(message.chat.id, 'Главное меню: выберите действие', reply_markup=markup)
         bot.register_next_step_handler(message, on_click)
     elif message.text == 'Добавить нового мастера':
@@ -137,12 +140,12 @@ def callback(call):
         ok = add_master(n, number, call.from_user.id)
         add_service_master_price('1', '5', '2000')
         client = None
-        add_appointments('2024-12-11', '12:00-14:00', '4', client, '1')  # Передаем правильные типы данных
-        add_appointments('2024-12-11', '14:00-15:00', '4', client, '1')  # Передаем правильные типы данных
-        add_appointments('2024-12-10', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
-        add_appointments('2024-12-09', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
-        add_appointments('2024-12-08', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
-        markup = main_panel(call.message)
+        #add_appointments('2024-12-11', '12:00-14:00', '4', client, '1')  # Передаем правильные типы данных
+        #add_appointments('2024-12-11', '14:00-15:00', '4', client, '1')  # Передаем правильные типы данных
+        #add_appointments('2024-12-10', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
+        #add_appointments('2024-12-09', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
+        #add_appointments('2024-12-08', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
+        markup = main_panel(call.from_user.id)
         if ok:
             bot.send_message(call.message.chat.id, "Ты добавлена в бот \U0001F48B", reply_markup=markup)
             bot.register_next_step_handler(call.message, on_click)
@@ -163,7 +166,7 @@ def callback(call):
 # Обработчик нажатия на кнопку 'Главное меню'
 @bot.callback_query_handler(func=lambda call: call.data == 'main')
 def callback(call):
-    markup = main_panel(call.message)
+    markup = main_panel(call.from_user.id)
     bot.send_message(call.message.chat.id, 'Главное меню: выберите действие', reply_markup=markup)
     bot.register_next_step_handler(call.message, on_click)
 
@@ -347,11 +350,11 @@ def appointments(message):
     client = None
     # add_appointments('2025-01-13', '12:00-14:00', '3', client, '1')  # Передаем правильные типы данных мастер варвара
     #add_appointments('2025-12-28', '18:00-20:00', '1', client, '1')  # Передаем правильные типы данных мастер ева
-    add_appointments('2024-12-11', '12:00-14:00', '3', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-11', '14:00-15:00', '3', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-10', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-09', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
-    add_appointments('2024-12-08', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
+    #add_appointments('2024-12-11', '12:00-14:00', '3', client, '1')  # Передаем правильные типы данных
+    #add_appointments('2024-12-11', '14:00-15:00', '3', client, '1')  # Передаем правильные типы данных
+    #add_appointments('2024-12-10', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
+    #add_appointments('2024-12-09', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
+    #add_appointments('2024-12-08', '20:00-22:00', '3', client, '1')  # Передаем правильные типы данных
     # add_appointments('2024-12-13', current_time, '2', client, '1')  # Передаем правильные типы данных
     # add_appointments('2024-12-14', current_time, '1', client, '1')  # Передаем правильные типы данных
     # add_appointments('2024-11-20', current_time, '3', client, '1')  # Передаем правильные типы данных
@@ -407,7 +410,7 @@ no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(back_
 
 # Функция для обработки возврата в главное меню
 def go_to_main_menu(message):
-    markup = main_panel(message)
+    markup = main_panel(message.from_user.id)
     bot.send_message(message.chat.id, 'Главное меню: выберите действие', reply_markup=markup)
     bot.register_next_step_handler(message, on_click)
 
@@ -993,7 +996,7 @@ def confirm_appointment(call):
             final_message = f"Ваша запись на {appointment_date} в {appointment_time} подтверждена!"
             bot.edit_message_text(final_message, chat_id, call.message.message_id)
             bot.edit_message_text("Благодарим, Вас!", call.message.chat.id, call.message.message_id, reply_markup=None)
-            bot.send_message(call.message.chat.id, "Возврат в главное меню", reply_markup=main_panel(call.message))
+            bot.send_message(call.message.chat.id, "Возврат в главное меню", reply_markup=main_panel(call.from_user.id))
             bot.register_next_step_handler(call.message, on_click)
 
             # Очистка временной информации
@@ -1084,7 +1087,7 @@ def cancel_appointment(call):
 
     # Отмена записи
     bot.edit_message_text("Выбор отменен.", call.message.chat.id, call.message.message_id, reply_markup=None)
-    bot.send_message(call.message.chat.id, "Что-то еще?", reply_markup=main_panel(call.message))
+    bot.send_message(call.message.chat.id, "Что-то еще?", reply_markup=main_panel(call.from_user.id))
     bot.register_next_step_handler(call.message, on_click)
 
     # Очистка временной информации
@@ -1254,7 +1257,7 @@ def back_to_services(call):
 @bot.callback_query_handler(func=lambda call: call.data == 'cancel')
 def cancel_selection(call):
     bot.edit_message_text("Выбор отменен.", call.message.chat.id, call.message.message_id, reply_markup=None)
-    bot.send_message(call.message.chat.id, "Что-то еще?", reply_markup=main_panel(call.message))
+    bot.send_message(call.message.chat.id, "Что-то еще?", reply_markup=main_panel(call.from_user.id))
     bot.register_next_step_handler(call.message, on_click)
 
 
@@ -1295,3 +1298,153 @@ def extract_client_id_from_data_storage(data_storage, key):
     except (KeyError, IndexError):
         return None
 
+
+########################################################
+# Занесение расписания работы - начало
+
+# Шаг 1 - показываем месяца
+def show_month(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "Выберите месяц для создания окон", reply_markup=create_month_keyboard())
+
+# Шаг 2 - показываем мастеров
+def show_masters(message, y, m):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "Выберите мастера:", reply_markup=create_masters_keyboard(y, m))
+
+# Шаг 3 - показываем опции
+def show_options(message, name_m, id_m, y, m):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, f"Мастер {name_m}\nВы можете занести стандартное расписание с ПН по ПТ с 9:00 по 18:00 \n "
+                     , reply_markup=create_options_keyboard(name_m, id_m, y, m))
+
+#Нажатие на кнопку месяца
+@bot.callback_query_handler(func=lambda call: call.data.startswith("schMonth_"))
+def handle_month_selection(call):
+    _, date_string = call.data.split('_')  # Распаковка данных
+    y, m = date_string.split('-')  # Разделяем на год и месяц
+    show_masters(call.message, y, m)
+
+#Нажатие на мастера
+@bot.callback_query_handler(func=lambda call: call.data.startswith("schMaster_"))
+def handle_master_selection(call):
+    _, id_master, name_m, y, m = call.data.split('_')  # Распаковка данных
+    show_options(call.message, name_m, id_master, y, m)
+
+#Нажатие на опцию
+@bot.callback_query_handler(func=lambda call: call.data.startswith("opt_"))
+def handle_opt_selection(call):
+    _, opt, id_master, name_m, y, m = call.data.split('_')  # Распаковка данных
+    if int(opt) == 1 :
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(types.InlineKeyboardButton(text="Назад", callback_data="shStep_3_"+y+"_"+m+"_"+id_master+"_"+name_m))
+        markup.add(types.InlineKeyboardButton(text="В главное меню", callback_data="main"))
+        # проверяем что на этот месяц не созданы все стандартные окна
+        res = check_all_default_slots_for_master(id_master, y, m)
+        if len(res) == 0:
+            create_appointments_default(id_master, y, m)
+            bot.send_message(call.message.chat.id, f"Cтандартные окна для мастера {name_m} созданы", reply_markup=markup)
+        else:
+            bot.send_message(call.message.chat.id, f"Все стандартные окна для мастера {name_m} уже созданы", reply_markup=markup)
+
+#Возврат к предыдущему шагу
+@bot.callback_query_handler(func=lambda call: call.data.startswith("shStep_"))
+def handle_return_selection(call):
+    parts = call.data.split('_')  # Распаковка данных
+    #на первом шаге данных нет
+    if int(parts[1]) == 1:
+        show_month(call.message)
+    #на втором год и мясц
+    if int(parts[1]) == 2:
+        y=parts[2]
+        m=parts[3]
+        show_masters(call.message, y, m)
+    #на третьем месяц год id мастера и имя мастера
+    if int(parts[1]) == 3:
+        y = parts[2]
+        m = parts[3]
+        id_m = parts[4]
+        name_m = parts[5]
+        show_options(call.message, name_m, id_m, y, m)
+
+# Функция для создания клавиатуры с месяцами
+def create_month_keyboard():
+    markup = types.InlineKeyboardMarkup()
+    today = date.today()
+
+    for i in range(6):  # Текущий месяц + 5
+        future_date = today + timedelta(days=i * 30)  # Упрощение, 30 дней на месяц
+        month_name = month_to_str(future_date.month) + " "+ future_date.strftime("%Y")  # Название месяца и год, например: "November 2024"
+        month_data = future_date.strftime("%Y") + "-" + str(future_date.month)  # Данные для callback, например: "2024-11"
+
+        markup.add(types.InlineKeyboardButton(month_name, callback_data=f"schMonth_{month_data}"))
+    markup.add(types.InlineKeyboardButton(text="В главное меню", callback_data="main"))
+    return markup
+
+# Функция для создания клавиатуры с мастерами
+def create_masters_keyboard(y, m):
+    markup = InlineKeyboardMarkup()
+    masters = get_masters()
+    for master in masters:
+        master_btn = InlineKeyboardButton(text=master[1], callback_data="schMaster_" + str(master[0]) + "_" + str(master[1]) + "_" + y + "_" + m)
+        markup.add(master_btn)
+    markup.add(types.InlineKeyboardButton(text="В главное меню", callback_data="main"))
+    markup.add(types.InlineKeyboardButton(text="Назад", callback_data="shStep_1"))
+    return markup
+
+# Функция для создания клавиатуры с опциями
+def create_options_keyboard(name_m, id_m, y, m):
+    markup = InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton(text="Стандартное расписание", callback_data="opt_1_"+id_m+"_"+name_m+"_"+ y + "_" + m))
+    markup.add(types.InlineKeyboardButton(text="В главное меню", callback_data="main"))
+    markup.add(types.InlineKeyboardButton(text="Назад", callback_data="shStep_2_"+y+"_"+m))
+    return markup
+
+# Функция для добавления в бд стандартного расписания на месяц
+def create_appointments_default(id_master, y, m):
+    dates = get_weekdays_in_month(int(y), int(m))
+    for d in dates:
+        for app in apps:
+            add_appointments(d, app, id_master)
+
+# Функция получения будних дней месяца
+def get_weekdays_in_month(y, m):
+    # Получаем количество дней в месяце
+    days_in_month = calendar.monthrange(y, m)[1]
+    weekdays = []
+
+    for d in range(1, days_in_month + 1):
+        # Получаем день недели (0 - понедельник, 6 - воскресенье)
+        day_of_week = calendar.weekday(y, m, d)
+        # Добавляем только будние дни (не субботу и воскресенье)
+        if day_of_week < 5:  # Понедельник (0) - Пятница (4)
+            weekdays.append(f"{y}-{m:02d}-{d:02d}")
+
+    return weekdays
+
+# Функция получения  дней месяца
+def get_dates_in_month(y, m):
+    # Получаем количество дней в месяце
+    days_in_month = calendar.monthrange(y, m)[1]
+    # Генерируем список всех дат в формате 'YYYY-MM-DD'
+    dates = [f"{y}-{m:02d}-{day:02d}" for day in range(1, days_in_month + 1)]
+    return dates
+
+# Проверка создания всех стандартных окон
+def check_all_default_slots_for_master(id_master, y, m):
+    # Получаем все рабочие дни месяца для мастера
+    weekdays = get_weekdays_in_month(int(y), int(m))
+    # Структура для хранения свободных слотов
+    free_days = {}
+    for d in weekdays:
+        free_app = []
+        for app in apps:
+            res = get_appointments(id_master, d, app)
+            if res:
+                free_app.append(app)
+        if free_app:
+            free_days[d] = free_app
+    return free_days
+
+# Занесение расписания работы - конец
+########################################################

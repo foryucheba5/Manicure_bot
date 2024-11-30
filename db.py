@@ -56,11 +56,13 @@ def init_db():
         appointments_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL UNIQUE, 
         appointment_date TEXT NOT NULL,
         appointment_time TEXT NOT NULL,
-        service_master_price_id INTEGER NOT NULL,
+        service_master_price_id INTEGER,
         client_id INTEGER,
+        master_id INTEGER NOT NULL,
         IsActive INTEGER NOT NULL CHECK(IsActive IN (0, 1)),
         FOREIGN KEY (service_master_price_id) REFERENCES service_master_price (service_master_price_id) ON DELETE CASCADE,
-        FOREIGN KEY (client_id) REFERENCES users (id) ON DELETE CASCADE
+        FOREIGN KEY (client_id) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (master_id) REFERENCES users (id) ON DELETE CASCADE
         ) 
         ''')
 
@@ -210,17 +212,31 @@ def add_service_master_price(service_id, master_id, price):
     conn.commit()
     conn.close()
 
-# Добавление записей
-def add_appointments(appointment_date, appointment_time, service_master_price_id, client_id, IsActive):
+# Добавление свободного окна на мастера дату и время
+def add_appointments(appointment_date, appointment_time, id_master):
     conn = sqlite3.connect(DB_NEW)
     conn.execute("PRAGMA foreign_keys = ON")
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO appointments (appointment_date, appointment_time, service_master_price_id, client_id, IsActive) VALUES (?, ?, ?, ?, ?)",
-        (appointment_date, appointment_time, service_master_price_id, client_id, IsActive)
+        "INSERT INTO appointments (appointment_date, appointment_time, master_id, IsActive) VALUES (?, ?, ?, ?)",
+        (appointment_date, appointment_time, id_master, '1')
     )
     conn.commit()
     conn.close()
+
+# проверка существования окна записи для мастера на дату и время
+def get_appointments(id_master, appointment_date, appointment_time):
+    result = True
+    conn = sqlite3.connect(DB_NEW)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+    cursor.execute('''
+                    SELECT * FROM appointments WHERE master_id = ? AND appointment_date = ? AND appointment_time = ?
+                ''', (id_master, appointment_date, appointment_time))
+    if not cursor.fetchone():
+        result = False
+    conn.close()
+    return result
 
 # Функция для проверки, является ли пользователь администратором
 def is_admin(telegram_id):
