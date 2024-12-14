@@ -795,3 +795,5 @@ def get_appointments_by_client_id_show(client_id):
     return results
 
     conn.close()
+
+#коммент
