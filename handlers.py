@@ -1497,4 +1497,3 @@ def new_service(message):
 def new_service_master_price(message):
     add_service_master_price(1, 1)
 
-#коммент
