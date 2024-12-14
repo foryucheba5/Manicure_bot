@@ -11,14 +11,15 @@ from typing import Dict, List
 from db import is_admin, add_admin, add_master, add_service, add_service_master_price, add_appointments, \
     get_services, get_serv, get_master, edt_service_name, get_masters, del_service, edt_service_descr, master_in_serv, \
     edt_service_price, save_user_to_database, is_user_in_database, get_service_master_price_id, \
-    get_available_times_for_date, get_unique_days_in_month_and_year, get_unique_months_in_year, get_unique_active_years, \
+    get_available_times_for_date, get_unique_days_in_month_and_year_new, get_unique_months_in_year_new, \
     get_service_detail, get_available_services, get_user_id_by_telegram_id, update_telegram_id, \
     get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
     update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
-    get_appointments_by_client_id_show, del_user, get_appointments, get_user_telegram_ids, check_free_app_for_month_year
+    get_appointments_by_client_id_show, del_user, get_appointments, get_available_services_new, get_service_detail_new, \
+    get_unique_active_years_new, check_free_app_for_month_year, get_user_telegram_ids
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
-bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
+bot = telebot.TeleBot('7507424407:AAGb_7uu8r27CiYAw23qR2HfTCHpqO8e7Ww')
 url_master = 'https://t.me/nailove_manicure_bot?start=addMaster'
 name = None
 btn1 = types.KeyboardButton('Посмотреть окна записи')
@@ -38,7 +39,7 @@ SERV_DESCRIPTION = {}
 SERV_ID_ADD = {}
 MASTER_ID = {}
 
-apps = ["9:00-11:00", "11:00-13:00", "14:00-16:00", "16:00-18:00"]
+apps = ["09:00-11:00", "11:00-13:00", "14:00-16:00", "16:00-18:00"]
 
 #главная менюшка на клавиатуре
 def main_panel(user_id):
@@ -185,7 +186,7 @@ def is_valid_phone_number(phone_number):
 # Добавить админа - введите нужные данные шоб добавить себя и в боте введите команду /admin
 @bot.message_handler(commands=['admin'])
 def admin(message):
-    add_admin('Елизавета', '89883314500', message.from_user.id)
+    add_admin('Таня', '89883314500', message.from_user.id)
 
 
 @bot.message_handler(commands=['bez_master'])
@@ -338,7 +339,7 @@ def del_serv(message):
 # Костыль на время, чтобы добавить мастера - введите нужные данные шоб добавить ненастоящего мастера и в боте введите команду /new_master
 @bot.message_handler(commands=['new_master'])
 def new_master(message):
-    add_master('Юнона', '89198345322', '5590353291')
+    add_master('Гремли', '89108345322', '9890353291')
 
 
 # Костыль на время
@@ -391,14 +392,29 @@ def appointments(message):
 #     return markup
 
 # Функция для генерации клавиатуры с услугами
+# def generate_service_keyboard():
+#     available_services = get_available_services()
+#     markup = types.InlineKeyboardMarkup()
+#
+#     for service in available_services:
+#         # Добавляем кнопки для каждой услуги
+#         markup.add(types.InlineKeyboardButton(
+#             text=service['name'],  # Только название услуги
+#             callback_data=f"service_{service['id']}"
+#         ))
+#
+#     markup.add(types.InlineKeyboardButton("Отмена", callback_data="cancel"))  # Кнопка отмены
+#     return markup
+
+# Функция для генерации клавиатуры с услугами после спринта
 def generate_service_keyboard():
-    available_services = get_available_services()
+    available_services = get_available_services_new()
     markup = types.InlineKeyboardMarkup()
 
     for service in available_services:
         # Добавляем кнопки для каждой услуги
         markup.add(types.InlineKeyboardButton(
-            text=service['name'],  # Только название услуги
+            text=f"{service['name']} ({service['price']} руб.)",  # название и цена
             callback_data=f"service_{service['id']}"
         ))
 
@@ -427,15 +443,15 @@ def return_to_main_menu(message):
     go_to_main_menu(message)
 
 def show_services(chat_id):
-    available_services = get_available_services()
+    available_services = get_available_services_new()
     if len(available_services) > 0:
         # Отправляем сообщение с перечислением услуг
-        service_list = "\n".join([f"{service['name']} - {service['description']}" for service in available_services])
+        service_list = "\n".join([f"{service['name']} - {service['description']} - Цена: {service['price']}" for service in available_services])
         bot.send_message(chat_id, f"Доступные услуги:\n{service_list}")
         bot.send_message(chat_id, "Выберите услугу:", reply_markup=generate_service_keyboard())
     else:
         no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(types.KeyboardButton('Вернуться в главное меню'))
-        bot.send_message(chat_id, "Нет доступных услуг.", reply_markup=no_services_keyboard)
+        bot.send_message(chat_id, "Нет доступных услуг....", reply_markup=no_services_keyboard)
 
 
 def show_services_client(message):
@@ -451,21 +467,23 @@ def show_services_client(message):
     if not appointments:
         no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(
             types.KeyboardButton('Вернуться в главное меню'))
-        bot.send_message(message.chat.id, "Нет доступных услуг.", reply_markup=no_services_keyboard)
+        bot.send_message(message.chat.id, "Вы еще не были записаны на услуги", reply_markup=no_services_keyboard)
         return
 
-        # Формируем сообщение с услугами
+    # Формируем сообщение с услугами
     services_message = ""
     for index, appointment in enumerate(appointments, start=1):  # Добавляем индексацию записей
         appointment_date, appointment_time, service_name, price, client_name, master_name = appointment
         services_message += (f"Запись {index}\n"
-                             f"Услуга: {service_name}\n"
-                             f"Мастер: {master_name}\n"
-                             f"Стоимость: {price} руб.\n"
-                             f"Дата: {appointment_date}\n"
-                             f"Время: {appointment_time}\n\n")  # Двойной перенос строки между записями
+                            f"Услуга: {service_name}\n"
+                            f"Мастер: {master_name}\n"
+                            f"Стоимость: {price} руб.\n"
+                            f"Дата: {appointment_date}\n"
+                            f"Время: {appointment_time}\n\n")  # Двойной перенос строки между записями
 
-    bot.send_message(message.chat.id, services_message.strip())  # Убираем лишний пробел в конце
+    services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(
+        types.KeyboardButton('Вернуться в главное меню'))
+    bot.send_message(message.chat.id, services_message.strip(), reply_markup=services_keyboard)  # Убираем лишний пробел в конце
 
 
 
@@ -479,21 +497,36 @@ def show_services_client(message):
 
 
 # Функция для генерации клавиатуры с мастерами и ценой
+# def generate_master_keyboard(service_id):
+#     service_details = get_service_detail(service_id)
+#     markup = types.InlineKeyboardMarkup()
+#
+#     # Предположим, что функция get_service_detail_by_id возвращает список кортежей (мастер, цена),
+#     # соответствующих данному service_id
+#     for master_name, price in service_details:
+#         button_text = f"{master_name} ({price} руб.)"
+#         markup.add(types.InlineKeyboardButton(
+#             text=button_text,
+#             callback_data=f"master_{master_name}_{price}"
+#         ))
+#
+#     markup.add(types.InlineKeyboardButton("Назад", callback_data="back_to_services"))
+#     return markup
+
+# Функция для генерации клавиатуры с мастерами и ценой после спринта
 def generate_master_keyboard(service_id):
-    service_details = get_service_detail(service_id)
+    service_details = get_service_detail_new(service_id)
     markup = types.InlineKeyboardMarkup()
 
-    # Предположим, что функция get_service_detail_by_id возвращает список кортежей (мастер, цена),
-    # соответствующих данному service_id
-    for master_name, price in service_details:
-        button_text = f"{master_name} ({price} руб.)"
+    for master_name in service_details:
         markup.add(types.InlineKeyboardButton(
-            text=button_text,
-            callback_data=f"master_{master_name}_{price}"
+            text=master_name,
+            callback_data=f"master_{master_name}"
         ))
 
     markup.add(types.InlineKeyboardButton("Назад", callback_data="back_to_services"))
     return markup
+
 
 # # Функция для генерации клавиатуры с доступными годами
 # def generate_year_keyboard():
@@ -520,7 +553,7 @@ def generate_year_keyboard(telegram_id):
         return None  # Или другой способ обработки отсутствия service_master_price_id
 
     # Получаем уникальные доступные годы с учетом service_master_price_id
-    years = get_unique_active_years(service_master_price_id)
+    years = get_unique_active_years_new(service_master_price_id)
 
     if not years:
         return None  # Или другой способ обработки отсутствия подходящих годов
@@ -559,7 +592,7 @@ def generate_month_keyboard(telegram_id, year):
         return None  # Или другой способ обработки отсутствия service_master_price_id
 
     # Получаем уникальные доступные месяцы с учетом service_master_price_id
-    months = get_unique_months_in_year(service_master_price_id, year)
+    months = get_unique_months_in_year_new(service_master_price_id, year)
 
     if not months:
         return None  # Или другой способ обработки отсутствия подходящих месяцев
@@ -660,7 +693,7 @@ def generate_day_keyboard(telegram_id, year, month):
         return None  # Или другой способ обработки отсутствия service_master_price_id
 
     # Получаем уникальные доступные дни с учетом service_master_price_id
-    available_days = get_unique_days_in_month_and_year(service_master_price_id, year, month)
+    available_days = get_unique_days_in_month_and_year_new(service_master_price_id, year, month)
     print(available_days)
     print(service_master_price_id)
     print(year)
@@ -802,7 +835,7 @@ def handle_service_selection(call):
 # Обработчик нажатия кнопок мастеров
 @bot.callback_query_handler(func=lambda call: call.data.startswith('master_'))
 def process_master(call):
-    _, master, price = call.data.split("_")
+    _, master = call.data.split("_")
     user_id = call.message.chat.id
     if user_id in user_selected_services:
         service_id = user_selected_services.get(user_id)
@@ -996,7 +1029,7 @@ def confirm_appointment(call):
                   f"appointment_time: {appointment_time}, service_master_price_id: {service_master_price_id}, "
                   f"client_id: {client_id}")
 
-            update_client_id_in_appointment(appointments_id, client_id)
+            update_client_id_in_appointment(appointments_id, client_id, service_master_price_id)
 
             # Логика завершения записи
             final_message = f"Ваша запись на {appointment_date} в {appointment_time} подтверждена!"
@@ -1455,6 +1488,11 @@ def check_all_default_slots_for_master(id_master, y, m):
 # Занесение расписания работы - конец
 ########################################################
 
+
+
+# Занесение расписания работы - конец
+########################################################
+
 ########################################################
 # Отправка клиентам уведомления об открытии записи - начало
 #Шаг 1 - выбор месяца
@@ -1502,3 +1540,26 @@ def handle_month_ntf_selection(call):
 
 # Отправка клиентам уведомления об открытии записи - конец
 ########################################################
+
+
+
+
+
+
+
+########################################################
+# Создание новых услуг со стоимостью - костыль
+#  /new_service
+@bot.message_handler(commands=['new_service'])
+def new_service(message):
+    add_service('Маникюр хитрый', 'Подпил, покраска, а стоит дороже', '2000 руб.')
+
+
+# Создание новой cтоимости услуги мастеров без стоимости - костыль
+#  /new_smp
+@bot.message_handler(commands=['new_smp'])
+def new_service_master_price(message):
+    add_service_master_price(1, 1)
+
+#
+
