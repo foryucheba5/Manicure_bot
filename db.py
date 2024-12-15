@@ -1,8 +1,7 @@
 import sqlite3
 
-DB_NEW = 'nailBD_new_pomena_1.sql'
+DB_NEW = 'nailBD_1_9.sql'
 
-# подключение БД и создание её
 # подключение БД и создание её
 def init_db():
     conn = sqlite3.connect(DB_NEW)
@@ -192,12 +191,12 @@ def master_in_serv(service_id, master_id):
     else:
         return False
 
-def edt_service_price(service_id, master_id, price):
+def edt_service_price(service_id, price):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
     cursor.execute(
-        "UPDATE service_master_price SET price = ? WHERE service_id = ? AND master_id = ?",
-        (price, service_id, master_id)
+        "UPDATE services SET price = ? WHERE service_id = ?",
+        (price, service_id)
     )
     conn.commit()
     conn.close()
@@ -319,12 +318,22 @@ def get_services():
 def get_serv(serv_id):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
-    cursor.execute("SELECT s.description, p.price, p.master_id FROM services AS s "
-                   "JOIN service_master_price AS p ON s.service_id = p.service_id "
-                   "WHERE s.service_id = ?", (serv_id))
-    serv = cursor.fetchall()
+    cursor.execute("SELECT description, price FROM services WHERE service_id = ?", (serv_id))
+
+    serv = cursor.fetchone()
+
     conn.close()
     return serv
+
+def get_serv_master(serv_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute("SELECT p.master_id FROM services AS s "
+                   "JOIN service_master_price AS p ON s.service_id = p.service_id "
+                   "WHERE s.service_id = ?", (serv_id))
+    serv_masters = [row[0] for row in cursor]
+    conn.close()
+    return serv_masters
 
 def get_master(master_id):
     conn = sqlite3.connect(DB_NEW)
@@ -407,6 +416,13 @@ def del_service(service_id):
     cursor = conn.cursor()
     # SQL запрос для удаления услуги по ID
     cursor.execute("DELETE FROM services WHERE service_id = ?", (service_id,))
+    conn.commit()
+    conn.close()
+
+def del_master_serv(service_id, master_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM service_master_price WHERE service_id = ? AND master_id = ?", (service_id,master_id))
     conn.commit()
     conn.close()
 

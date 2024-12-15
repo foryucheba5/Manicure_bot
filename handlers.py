@@ -16,10 +16,10 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
     update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
     get_appointments_by_client_id_show, del_user, get_appointments, get_available_services_new, get_service_detail_new, \
-    get_unique_active_years_new, check_free_app_for_month_year, get_user_telegram_ids
+    get_unique_active_years_new, check_free_app_for_month_year, get_user_telegram_ids, del_master_serv, get_serv_master
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
-bot = telebot.TeleBot('7507424407:AAGb_7uu8r27CiYAw23qR2HfTCHpqO8e7Ww')
+bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
 url_master = 'https://t.me/nailove_manicure_bot?start=addMaster'
 name = None
 btn1 = types.KeyboardButton('Посмотреть окна записи')
@@ -186,7 +186,8 @@ def is_valid_phone_number(phone_number):
 # Добавить админа - введите нужные данные шоб добавить себя и в боте введите команду /admin
 @bot.message_handler(commands=['admin'])
 def admin(message):
-    add_admin('Таня', '89883314500', message.from_user.id)
+    id = add_admin('Аня', '89005552146', message.from_user.id)
+    print("OK, " + str(id))
 
 
 @bot.message_handler(commands=['bez_master'])
@@ -219,27 +220,32 @@ def edt_serv(call):
     service_name = call.data.split("#")[2]
     SERV_ID[call.message.chat.id] = service_id
 
-    iter = 0
     text_call = ""
-    for serv in get_serv(service_id):
-        service_description = serv[0]
-        if iter == 0:
-            text_call = f"""<b>{service_name} ({service_description})</b>\n\n<b>Мастера:</b>\n"""
 
-        if len(serv) > 1:
-            service_prices = serv[1]
-            service_master_id = serv[2]
-            master_name = get_master(str(service_master_id))
-            text_call += f"""{iter + 1}) {master_name} - {service_prices} руб.\n"""
-        iter = iter + 1
+    service = get_serv(service_id)
+    if len(service) > 0:
+        service_description = service[0]
+        service_prices = service[1]
+        text_call = f"""<b>{service_name} ({service_description})</b> - {service_prices} руб."""
+
+        masters = get_serv_master(service_id)
+        if len(masters) > 0:
+            iter = 0
+            for master_id in masters:
+                if iter == 0:
+                    text_call += f"""\n\n<b>Мастера:</b>\n"""
+                iter = iter + 1
+                master_name = get_master(str(master_id))
+                text_call += f"""{iter}) {master_name}\n"""
 
     markup = InlineKeyboardMarkup(row_width=1)
     title_edt_btn = InlineKeyboardButton(text="Название", callback_data="edt_serv_name")
     descr_edt_btn = InlineKeyboardButton(text="Описание", callback_data="edt_serv_descr")
+    price_edt_btn = InlineKeyboardButton(text="Стоимость", callback_data="edt_serv_price")
     master_edt_btn = InlineKeyboardButton(text="Мастера", callback_data="serv_master")
     del_serv_btn = InlineKeyboardButton(text="Удалить", callback_data="del_serv")
     main_btn = InlineKeyboardButton(text="Вернуться в каталог", callback_data="back_cat")
-    markup.add(title_edt_btn, descr_edt_btn, master_edt_btn, del_serv_btn, main_btn)
+    markup.add(title_edt_btn, descr_edt_btn, price_edt_btn, master_edt_btn, del_serv_btn, main_btn)
     bot.send_message(call.message.chat.id, text_call, parse_mode="HTML", reply_markup=markup)
 
 
@@ -273,6 +279,19 @@ def edt_serv_descr_step(message):
         bot.send_message(message.chat.id, "Ок. Новое описание услуги: " + serv_descr)
         print_services(message)
 
+# Редактирование стоимости услуги
+@bot.callback_query_handler(func=lambda call: call.data.split("#")[0] == "edt_serv_price")
+def edt_serv_name(call):
+    bot.send_message(call.message.chat.id, "Введите новую стоимость услуги")
+    bot.register_next_step_handler(call.message, edt_serv_price_step)
+
+def edt_serv_price_step(message):
+    if SERV_ID[message.chat.id] != '' and SERV_ID[message.chat.id] is not None:
+        serv_price = message.text
+        edt_service_price(SERV_ID[message.chat.id], serv_price)
+        bot.send_message(message.chat.id, "Ок. Новая стоимость услуги: " + serv_price)
+        print_services(message)
+
 # Редактирование мастеров в услуге
 @bot.callback_query_handler(func=lambda call: call.data == "serv_master")
 def serv_master(call):
@@ -293,36 +312,65 @@ def add_serv_name(call):
 
 def add_serv_descr(message):
     SERV_NAME[message.chat.id] = message.text
-    bot.send_message(message.chat.id, "Введите описание услуги")
-    bot.register_next_step_handler(message, service)
+    if SERV_NAME[message.chat.id] is not None:
+        bot.send_message(message.chat.id, "Введите описание услуги")
+        bot.register_next_step_handler(message, add_serv_price)
+    else:
+        bot.send_message(message.chat.id, "Повторите предыдущий шаг.")
+        add_serv_name()
+
+def add_serv_price(message):
+    SERV_DESCRIPTION[message.chat.id] = message.text
+    if SERV_DESCRIPTION[message.chat.id] is not None:
+        bot.send_message(message.chat.id, "Введите стоимость услуги")
+        bot.register_next_step_handler(message, service)
+    else:
+        bot.send_message(message.chat.id, "Повторите предыдущий шаг.")
+        add_serv_descr(SERV_NAME[message.chat.id])
 
 
 def service(message):
-    if SERV_NAME[message.chat.id] is not None:
-        SERV_ID[message.chat.id] = str(add_service(SERV_NAME[message.chat.id], message.text))
-        markup = InlineKeyboardMarkup()
-        masters = get_masters()
-        for master in masters:
-            master_btn = InlineKeyboardButton(text=master[1], callback_data="add_serv_master#" + str(master[0]))
-            markup.add(master_btn)
-        bot.send_message(message.chat.id, "Ок. Услуга создана. Укажите мастера: ", reply_markup=markup)
+    SERV_ID[message.chat.id] = str(add_service(SERV_NAME[message.chat.id], SERV_DESCRIPTION[message.chat.id], message.text))
+    if SERV_ID[message.chat.id] is not None:
+        bot.send_message(message.chat.id, "Ок. Услуга создана.")
+        master_panel(message)
+    else:
+        bot.send_message(message.chat.id, "Повторите предыдущий шаг.")
+        add_serv_name()
+
+def master_panel(message):
+    markup = InlineKeyboardMarkup()
+    masters = get_masters()
+    for master in masters:
+        master_btn = InlineKeyboardButton(text=master[1], callback_data="add_serv_master#" + str(master[0]))
+        markup.add(master_btn)
+    if len(masters) == 0:
+        bot.send_message(message.chat.id, "Пока нельзя назначить мастера, так как список мастеров пуст.")
+        print_services(message)
+    bot.send_message(message.chat.id, "Укажите мастера: ", reply_markup=markup)
+
 
 @bot.callback_query_handler(func=lambda call: call.data.split("#")[0] == "add_serv_master")
 def add_serv_master(call):
     if call.data.split("#") and call.data.split("#")[0] == "add_serv_master" and call.data.split("#")[1] != '' and call.data.split("#")[1] is not None:
             MASTER_ID[call.message.chat.id] = call.data.split("#")[1]
-    bot.send_message(call.message.chat.id, "Введите стоимость услуги")
-    bot.register_next_step_handler(call.message, service_master_price)
+            if not master_in_serv(SERV_ID[call.message.chat.id], MASTER_ID[call.message.chat.id]):
+                add_service_master_price(SERV_ID[call.message.chat.id], MASTER_ID[call.message.chat.id])
+                bot.send_message(call.message.chat.id, "Мастер успешно назначен!")
+                print_services(call.message)
+            elif master_in_serv(SERV_ID[call.message.chat.id], MASTER_ID[call.message.chat.id]) and len(get_serv_master(SERV_ID[call.message.chat.id])) > 1:
+                bot.send_message(call.message.chat.id, "Уверены, что хотите удалить мастера?")
+                bot.register_next_step_handler(call.message, service_master_del)
+            else:
+                bot.send_message(call.message.chat.id, "Нельзя удалить мастера.")
+                print_services(call.message)
 
-def service_master_price(message):
-    if MASTER_ID[message.chat.id] != '' and MASTER_ID[message.chat.id] is not None:
-        serv_price = message.text
-        if not master_in_serv(SERV_ID[message.chat.id], MASTER_ID[message.chat.id]):
-            add_service_master_price(SERV_ID[message.chat.id], MASTER_ID[message.chat.id], serv_price)
-            bot.send_message(message.chat.id, "Мастер успешно назначен!")
-        else:
-            edt_service_price(SERV_ID[message.chat.id], MASTER_ID[message.chat.id], serv_price)
-            bot.send_message(message.chat.id, "Стоимость услуги данного мастера успешно обновлена!")
+def service_master_del(message):
+    if message.text == 'Да' or message.text == 'да' and MASTER_ID[message.chat.id] != '' and MASTER_ID[message.chat.id] is not None and SERV_ID[message.chat.id] is not None:
+        del_master_serv(SERV_ID[message.chat.id], MASTER_ID[message.chat.id])
+        bot.send_message(message.chat.id, "Мастер успешно откреплен от услуги")
+    else:
+        bot.send_message(message.chat.id, "Мастер не откреплен от услуги")
     print_services(message)
 
 @bot.callback_query_handler(func=lambda call: call.data == "del_serv")
