@@ -31,6 +31,7 @@ user_states = {}
 STATES = {
     "WAITING_NAME": 1,
     "WAITING_NUMBER": 2,
+    "WAITING_SERV" : 3,
 }
 
 SERV_ID = {}
@@ -124,18 +125,52 @@ def handle_message(message):
     if state == STATES["WAITING_NUMBER"]:
         if is_valid_phone_number(message.text):
             user_states[chat_id]["data"]["number"] = message.text  # Сохраняем
-            n = user_states[chat_id]["data"]["name"]
-            number = user_states[chat_id]["data"]["number"]
-            # Выводим собранные данные
-            summary = f"""<b>Твои данные:</b>\n<b>Имя:</b> {n}\n<b>Телефон:</b> {number}\n"""
-            markup = InlineKeyboardMarkup(row_width=1)
-            share_button = InlineKeyboardButton(text="Подтвердить данные", callback_data="share_info")
-            cancel_button = InlineKeyboardButton(text="Ввести данные снова", callback_data="reload")
-            gen_button = InlineKeyboardButton(text="В главное меню", callback_data="main")
-            markup.add(share_button, cancel_button, gen_button)
-            bot.send_message(chat_id, summary, parse_mode="HTML", reply_markup=markup)
+            services = get_services()
+            if len(services) == 0:
+                print_confirm(chat_id)
+            else:
+                markup = InlineKeyboardMarkup(row_width=1)
+                btn_e = InlineKeyboardButton(text="Завершить", callback_data="exitservm")
+                for serv in services:
+                    btn_s = InlineKeyboardButton(text=serv[1],callback_data="addservm_" + str(serv[0]) + "_" + serv[1])
+                    markup.add(btn_s)
+                markup.add(btn_e)
+                bot.send_message(message.chat.id, "Выбери все услуги, которые ты оказываешь, а затем нажми кнопку 'Завершить'", reply_markup=markup)
         else:
             bot.send_message(message.chat.id,"Неверный формат номера телефона.\nПожалуйста, введи номер в формате +71234567890 или 81234567890")
+    if state == STATES["WAITING_SERV"]:
+        print_confirm(chat_id)
+
+def print_confirm(chat_id):
+    n = user_states[chat_id]["data"]["name"]
+    number = user_states[chat_id]["data"]["number"]
+    serv = user_states[chat_id]["data"]["serv"]
+    names_serv = ""
+    for i in serv:
+        id_serv, name_serv = i.split('#')
+        names_serv += name_serv + "\n"
+    # Выводим собранные данные
+    summary = f"""<b>Твои данные:</b>\n<b>Имя:</b> {n}\n<b>Телефон:</b> {number}\n<b>Выбранные услуги:</b>\n{names_serv}"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    share_button = InlineKeyboardButton(text="Подтвердить данные", callback_data="share_info")
+    cancel_button = InlineKeyboardButton(text="Ввести данные снова", callback_data="reload")
+    gen_button = InlineKeyboardButton(text="В главное меню", callback_data="main")
+    markup.add(share_button, cancel_button, gen_button)
+    bot.send_message(chat_id, summary, parse_mode="HTML", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("addservm_"))
+def add_serv_for_master(call):
+    chat_id = call.message.chat.id
+    _, id_serv, name_serv = call.data.split('_')
+    if not isinstance(user_states[chat_id]["data"].get("serv"), list):
+        user_states[chat_id]["data"]["serv"] = []
+    user_states[chat_id]["data"]["serv"].append(id_serv+"#"+name_serv)
+    bot.send_message(chat_id, f"Услуга {name_serv} добавлена.")
+
+@bot.callback_query_handler(func=lambda call: call.data == 'exitservm')
+def exit_serv_for_master(call):
+    chat_id = call.message.chat.id
+    print_confirm(chat_id)
 
 # Обработчик нажатия на кнопку 'Подтвердить данные' - добавление мастера
 @bot.callback_query_handler(func=lambda call: call.data == 'share_info')
@@ -144,14 +179,12 @@ def callback(call):
     if chat_id in user_states:
         n = user_states[chat_id]["data"]["name"]
         number = user_states[chat_id]["data"]["number"]
-        ok = add_master(n, number, call.from_user.id)
-        add_service_master_price('1', '5', '2000')
-        client = None
-        #add_appointments('2024-12-11', '12:00-14:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-11', '14:00-15:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-10', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-09', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-08', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
+        serv = user_states[chat_id]["data"]["serv"]
+        ids_serv = []
+        for i in serv:
+            id_serv, name_serv = i.split('#')
+            ids_serv.append(id_serv)
+        ok = add_master(n, number, call.from_user.id, ids_serv)
         markup = main_panel(call.from_user.id)
         if ok:
             bot.send_message(call.message.chat.id, "Ты добавлена в бот \U0001F48B", reply_markup=markup)
@@ -1532,11 +1565,6 @@ def check_all_default_slots_for_master(id_master, y, m):
         if free_app:
             free_days[d] = free_app
     return free_days
-
-# Занесение расписания работы - конец
-########################################################
-
-
 
 # Занесение расписания работы - конец
 ########################################################

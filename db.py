@@ -125,7 +125,7 @@ def add_admin(name, phone, tele_id):
     conn.close()
 
 # Добавление мастера
-def add_master(name, phone, tele_id):
+def add_master(name, phone, tele_id, serv):
     master_role_id = get_master_role_id()
     if master_role_id is None:
         return "Роль 'Мастер' не найдена. Пожалуйста, добавьте роль в таблицу roles."
@@ -138,8 +138,13 @@ def add_master(name, phone, tele_id):
         "INSERT INTO users (name, phone_number, role_id, telegram_id) VALUES (?, ?, ?, ?)",
         (name, phone, master_role_id, tele_id)
     )
+    master_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    if serv:
+        for id_serv in serv:
+            add_service_master_price(id_serv, master_id)
     return True
 
 # Изменение спринта: стоимость добавили сюда
