@@ -1,5 +1,6 @@
 import sqlite3
 
+#поменять на nailBD.sql
 DB_NEW = 'nailBD_1_9.sql'
 
 # подключение БД и создание её
@@ -237,15 +238,41 @@ def add_appointments(appointment_date, appointment_time, id_master):
 def get_appointments(id_master, appointment_date, appointment_time):
     result = True
     conn = sqlite3.connect(DB_NEW)
-    conn.execute("PRAGMA foreign_keys = ON")
+    #conn.execute("PRAGMA foreign_keys = ON")
     cursor = conn.cursor()
     cursor.execute('''
                     SELECT * FROM appointments WHERE master_id = ? AND appointment_date = ? AND appointment_time = ?
                 ''', (id_master, appointment_date, appointment_time))
     if not cursor.fetchone():
+        conn.close()
         result = False
     conn.close()
     return result
+
+def get_appointments_client(id_master, appointment_date, appointment_time):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute('''SELECT u.name FROM appointments a JOIN users u ON a.client_id = u.id WHERE a.master_id = ? 
+                        AND a.appointment_date = ? AND a.appointment_time = ?;''', (id_master, appointment_date, appointment_time))
+    client_name = cursor.fetchone()
+    conn.close()
+    return client_name[0] if client_name else None
+
+def get_appointments_id(id_master, appointment_date, appointment_time):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute('''SELECT appointments.appointments_id FROM appointments WHERE master_id = ? AND appointment_date = ? AND appointment_time = ?
+                    ''', (id_master, appointment_date, appointment_time))
+    id = cursor.fetchone()
+    conn.close()
+    return id[0] if id else None
+
+def del_appointments(appointments_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM appointments WHERE id = ?", (appointments_id,))
+    conn.commit()
+    conn.close()
 
 def check_free_app_for_month_year(month, year):
     """
@@ -302,6 +329,26 @@ def is_admin(telegram_id):
         conn.close()
         return False
 
+# Функция для проверки, является ли пользователь мастером
+def is_master(telegram_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+
+    # Получаем id роли "Master"
+    cursor.execute("SELECT id FROM roles WHERE role_name = ?", ("Master",))
+    master_role_id = cursor.fetchone()
+
+    # Если роль "Master" существует, проверяем, есть ли пользователь с этой ролью
+    if master_role_id:
+        master_role_id = master_role_id[0]
+        cursor.execute("SELECT * FROM users WHERE telegram_id = ? AND role_id = ?", (telegram_id, master_role_id))
+        user = cursor.fetchone()
+        conn.close()
+        return user is not None
+    else:
+        conn.close()
+        return False
+
 # Функция для проверки, существует ли роль "Мастер"
 def get_master_role_id():
     conn = sqlite3.connect(DB_NEW)
@@ -343,10 +390,18 @@ def get_serv_master(serv_id):
 def get_master(master_id):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
-    cursor.execute("SELECT name FROM users WHERE id = ?", (master_id))
+    cursor.execute("SELECT name FROM users WHERE id = ?", (master_id,))
     master_name = cursor.fetchone()
     conn.close()
     return master_name[0] if master_name else None
+
+def get_master_id(telegram_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,))
+    master_id = cursor.fetchone()
+    conn.close()
+    return master_id[0] if master_id else None
 
 def get_masters():
     master_role_id = get_master_role_id()
