@@ -447,7 +447,7 @@ def new_master(message):
 # Костыль на время
 @bot.message_handler(commands=['new_id'])
 def new_master(message):
-    update_telegram_id(4, 1110154291)
+    update_telegram_id(2, 1110154291)
 
 
 # Костыль на время, чтобы добавить записи - введите нужные данные шоб добавить записи и в боте введите команду /new_appointments
@@ -2145,14 +2145,14 @@ def handle_cancel_appointment(message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     buttons = []
     for i in range(len(appointments)):
-        button = types.InlineKeyboardButton(text=f"Запись {i + 1}", callback_data=f'select_record_{i}')
+        button = types.InlineKeyboardButton(text=f"Запись {i + 1}", callback_data=f'select1_record_{i}')
         buttons.append(button)
     keyboard.add(*buttons)
 
     bot.send_message(message.chat.id, "Выберите запись для отмены:", reply_markup=keyboard)
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('select_record_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('select1_record_'))
 def select_record_for_cancellation(call):
     try:
         user_id = call.from_user.id

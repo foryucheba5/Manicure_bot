@@ -1,11 +1,9 @@
 import sqlite3
 import datetime
 import time
-DB_NEW = 'nailBD_new_pomena_2.sql'
+DB_NEW = 'nailBD.sql'
 razn = 2
 
-#поменять на nailBD.sql
-DB_NEW = 'nailBD_1_9.sql'
 
 # подключение БД и создание её
 def init_db():
