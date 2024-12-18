@@ -17,15 +17,18 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
     get_appointments_by_client_id_show, del_user, get_appointments, get_available_services_new, get_service_detail_new, \
     get_unique_active_years_new, check_free_app_for_month_year, get_user_telegram_ids, del_master_serv, get_serv_master, \
+    get_appointments_client, del_appointments, get_appointments_id, is_master, get_master_id, \
+    get_unique_active_years_new, check_free_app_for_month_year, get_user_telegram_ids, del_master_serv, get_serv_master, \
     delete_appointment, get_appointments_by_client_id_show_o, handle_cancellation, handle_confirmation, \
     get_user_telegram_id_o, get_appointment_details
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
-bot = telebot.TeleBot('7507424407:AAGb_7uu8r27CiYAw23qR2HfTCHpqO8e7Ww')
+bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
 url_master = 'https://t.me/nailove_manicure_bot?start=addMaster'
 name = None
 btn1 = types.KeyboardButton('Посмотреть окна записи')
 btn2 = types.KeyboardButton('Посмотреть сведения о своей записи')
+btn3 = types.KeyboardButton('Моё расписание')
 btn4 = types.KeyboardButton('Админ-панель')
 
 
@@ -33,6 +36,7 @@ user_states = {}
 STATES = {
     "WAITING_NAME": 1,
     "WAITING_NUMBER": 2,
+    "WAITING_SERV" : 3,
 }
 
 SERV_ID = {}
@@ -43,15 +47,23 @@ MASTER_ID = {}
 
 apps = ["09:00-11:00", "11:00-13:00", "14:00-16:00", "16:00-18:00"]
 
+id_master_calendar = ''
+selected_options = {}
+
 #главная менюшка на клавиатуре
 def main_panel(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     admin_is = is_admin(user_id)
+    master_is = is_master(user_id)
     # Создание кнопок
     if admin_is:
         markup.add(btn1)
         markup.add(btn2)
         markup.add(btn4)
+    elif master_is:
+        markup.add(btn1)
+        markup.add(btn2)
+        markup.add(btn3)
     else:
         markup.add(btn1)
         markup.add(btn2)
@@ -81,16 +93,20 @@ def on_click(message):
     elif message.text == 'Обратиться к админстратору':
         bot.send_message(message.chat.id, 'Администратор оповещён')
         bot.register_next_step_handler(message, on_click)
+    elif message.text == 'Моё расписание':
+        send_calendar_master(message, message.from_user.id, year=None, month=None)
     elif message.text == 'Админ-панель':
         markup_admin = types.ReplyKeyboardMarkup()
         btn_master = types.KeyboardButton('Добавить нового мастера')
         btn_services = types.KeyboardButton('Каталог услуг')
         btn_exit = types.KeyboardButton('В главное меню')
         btn5 = types.KeyboardButton('Cоздание графика работы мастера')
+        btn7 = types.KeyboardButton('Просмотр расписания мастеров')
         btn6 = types.KeyboardButton('Отправить клиентам оповещение об открытии записи')
         markup_admin.add(btn_master)
         markup_admin.add(btn_services)
         markup_admin.add(btn5)
+        markup_admin.add(btn7)
         markup_admin.add(btn6)
         markup_admin.add(btn_exit)
         bot.send_message(message.chat.id, 'Панель адмнистратора: выберите действие', reply_markup=markup_admin)
@@ -99,6 +115,9 @@ def on_click(message):
         markup = types.ReplyKeyboardRemove()
         bot.send_message(message.chat.id, "Создание графика работы", reply_markup=markup)
         show_month(message)
+    elif message.text == 'Просмотр расписания мастеров':
+        print("все ок")
+        master_panel_сalendar(message)
     elif message.text == 'В главное меню':
         markup = main_panel(message.from_user.id)
         bot.send_message(message.chat.id, 'Главное меню: выберите действие', reply_markup=markup)
@@ -126,18 +145,52 @@ def handle_message(message):
     if state == STATES["WAITING_NUMBER"]:
         if is_valid_phone_number(message.text):
             user_states[chat_id]["data"]["number"] = message.text  # Сохраняем
-            n = user_states[chat_id]["data"]["name"]
-            number = user_states[chat_id]["data"]["number"]
-            # Выводим собранные данные
-            summary = f"""<b>Твои данные:</b>\n<b>Имя:</b> {n}\n<b>Телефон:</b> {number}\n"""
-            markup = InlineKeyboardMarkup(row_width=1)
-            share_button = InlineKeyboardButton(text="Подтвердить данные", callback_data="share_info")
-            cancel_button = InlineKeyboardButton(text="Ввести данные снова", callback_data="reload")
-            gen_button = InlineKeyboardButton(text="В главное меню", callback_data="main")
-            markup.add(share_button, cancel_button, gen_button)
-            bot.send_message(chat_id, summary, parse_mode="HTML", reply_markup=markup)
+            services = get_services()
+            if len(services) == 0:
+                print_confirm(chat_id)
+            else:
+                markup = InlineKeyboardMarkup(row_width=1)
+                btn_e = InlineKeyboardButton(text="Завершить", callback_data="exitservm")
+                for serv in services:
+                    btn_s = InlineKeyboardButton(text=serv[1],callback_data="addservm_" + str(serv[0]) + "_" + serv[1])
+                    markup.add(btn_s)
+                markup.add(btn_e)
+                bot.send_message(message.chat.id, "Выбери все услуги, которые ты оказываешь, а затем нажми кнопку 'Завершить'", reply_markup=markup)
         else:
             bot.send_message(message.chat.id,"Неверный формат номера телефона.\nПожалуйста, введи номер в формате +71234567890 или 81234567890")
+    if state == STATES["WAITING_SERV"]:
+        print_confirm(chat_id)
+
+def print_confirm(chat_id):
+    n = user_states[chat_id]["data"]["name"]
+    number = user_states[chat_id]["data"]["number"]
+    serv = user_states[chat_id]["data"]["serv"]
+    names_serv = ""
+    for i in serv:
+        id_serv, name_serv = i.split('#')
+        names_serv += name_serv + "\n"
+    # Выводим собранные данные
+    summary = f"""<b>Твои данные:</b>\n<b>Имя:</b> {n}\n<b>Телефон:</b> {number}\n<b>Выбранные услуги:</b>\n{names_serv}"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    share_button = InlineKeyboardButton(text="Подтвердить данные", callback_data="share_info")
+    cancel_button = InlineKeyboardButton(text="Ввести данные снова", callback_data="reload")
+    gen_button = InlineKeyboardButton(text="В главное меню", callback_data="main")
+    markup.add(share_button, cancel_button, gen_button)
+    bot.send_message(chat_id, summary, parse_mode="HTML", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("addservm_"))
+def add_serv_for_master(call):
+    chat_id = call.message.chat.id
+    _, id_serv, name_serv = call.data.split('_')
+    if not isinstance(user_states[chat_id]["data"].get("serv"), list):
+        user_states[chat_id]["data"]["serv"] = []
+    user_states[chat_id]["data"]["serv"].append(id_serv+"#"+name_serv)
+    bot.send_message(chat_id, f"Услуга {name_serv} добавлена.")
+
+@bot.callback_query_handler(func=lambda call: call.data == 'exitservm')
+def exit_serv_for_master(call):
+    chat_id = call.message.chat.id
+    print_confirm(chat_id)
 
 # Обработчик нажатия на кнопку 'Подтвердить данные' - добавление мастера
 @bot.callback_query_handler(func=lambda call: call.data == 'share_info')
@@ -146,14 +199,12 @@ def callback(call):
     if chat_id in user_states:
         n = user_states[chat_id]["data"]["name"]
         number = user_states[chat_id]["data"]["number"]
-        ok = add_master(n, number, call.from_user.id)
-        add_service_master_price('1', '5', '2000')
-        client = None
-        #add_appointments('2024-12-11', '12:00-14:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-11', '14:00-15:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-10', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-09', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
-        #add_appointments('2024-12-08', '20:00-22:00', '4', client, '1')  # Передаем правильные типы данных
+        serv = user_states[chat_id]["data"]["serv"]
+        ids_serv = []
+        for i in serv:
+            id_serv, name_serv = i.split('#')
+            ids_serv.append(id_serv)
+        ok = add_master(n, number, call.from_user.id, ids_serv)
         markup = main_panel(call.from_user.id)
         if ok:
             bot.send_message(call.message.chat.id, "Ты добавлена в бот \U0001F48B", reply_markup=markup)
@@ -349,7 +400,8 @@ def master_panel(message):
     if len(masters) == 0:
         bot.send_message(message.chat.id, "Пока нельзя назначить мастера, так как список мастеров пуст.")
         print_services(message)
-    bot.send_message(message.chat.id, "Укажите мастера: ", reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, "Укажите мастера: ", reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.split("#")[0] == "add_serv_master")
@@ -390,7 +442,6 @@ def del_serv(message):
 @bot.message_handler(commands=['new_master'])
 def new_master(message):
     add_master('Гремли', '89108345322', '9890353291')
-    add_master('Илма', '89768345331', '7790773291')
 
 
 # Костыль на время
@@ -1449,6 +1500,18 @@ def handle_opt_selection(call):
             bot.send_message(call.message.chat.id, f"Cтандартные окна для мастера {name_m} созданы", reply_markup=markup)
         else:
             bot.send_message(call.message.chat.id, f"Все стандартные окна для мастера {name_m} уже созданы", reply_markup=markup)
+    elif int(opt) == 2:
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(types.InlineKeyboardButton(text="В главное меню", callback_data="main"))
+        # проверяем что на этот месяц не созданы все стандартные окна
+        res = check_all_default_slots_for_master(id_master, y, m)
+        if len(res) == 0:
+            create_appointments_default(id_master, y, m)
+            bot.send_message(call.message.chat.id, f"Cтандартные окна для мастера {name_m} созданы",
+                             reply_markup=markup)
+        else:
+            bot.send_message(call.message.chat.id, f"Все стандартные окна для мастера {name_m} уже созданы",
+                             reply_markup=markup)
 
 #Возврат к предыдущему шагу
 @bot.callback_query_handler(func=lambda call: call.data.startswith("shStep_"))
@@ -1552,11 +1615,6 @@ def check_all_default_slots_for_master(id_master, y, m):
 # Занесение расписания работы - конец
 ########################################################
 
-
-
-# Занесение расписания работы - конец
-########################################################
-
 ########################################################
 # Отправка клиентам уведомления об открытии записи - начало
 #Шаг 1 - выбор месяца
@@ -1606,9 +1664,447 @@ def handle_month_ntf_selection(call):
 ########################################################
 
 
+def generate_calendar(year, month):
+    markup = types.InlineKeyboardMarkup()
+
+    # Кнопки для перехода между месяцами
+    prev_month_button = types.InlineKeyboardButton('<', callback_data=f'calendar_prev_{year}_{month}')
+    next_month_button = types.InlineKeyboardButton('>', callback_data=f'calendar_next_{year}_{month}')
+
+    # Заголовок календаря
+    row = [
+        prev_month_button,
+        types.InlineKeyboardButton(f'{month_to_str(month)} {year}', callback_data=f'calendar_month_{year}_{month}'),
+        next_month_button
+    ]
+    markup.row(*row)
+
+    # Дни недели
+    weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+    row = []
+    for day in weekdays:
+        row.append(types.InlineKeyboardButton(day, callback_data='ignore'))
+    markup.row(*row)
+
+    # Пустые ячейки до первого дня месяца
+    cal = calendar.Calendar().monthdatescalendar(year, month)
+    first_week = cal[0]
+    offset = first_week[0].weekday()
+    for i in range(offset):
+        row.append(types.InlineKeyboardButton(' ', callback_data='ignore'))
+
+    # Добавляем дни
+    for week in cal:
+        row = []
+        for day in week:
+            if day.month == month:
+                row.append(types.InlineKeyboardButton(str(day.day), callback_data=f'calendar_day_{day.day}_{month}_{year}'))
+            else:
+                row.append(types.InlineKeyboardButton(' ', callback_data='ignore'))
+        markup.row(*row)
+
+    gen_button = InlineKeyboardButton(text="В главное меню", callback_data="main")
+    markup.add(gen_button)
+
+    return markup
 
 
+def send_calendar_master(message, user_id, year=None, month=None):
+    master_is = is_master(user_id)
 
+    if master_is:
+        master_id = get_master_id(user_id)
+        today = date.today()
+        if not year:
+            year = today.year
+        if not month:
+            month = today.month
+        if master_id is not None:
+
+            days_list = get_calendar_for_month(master_id, year, month)
+            days_str = ""
+            if len(days_list) > 0:
+                for day, app in days_list.items():
+                    date_obj = datetime.strptime(day, "%Y-%m-%d")
+                    if (date_obj.day >= today.day and date_obj.month == today.month) or date_obj.month != today.month:
+                        days_str += f"{date_obj.day:02}.{date_obj.month:02} - "
+                        for a in app:
+                            days_str += f"{a}  "
+                        days_str += "\n\n"
+            else:
+                days_str = "Расписание не заполнено\n\n"
+
+            bot.send_message(message.chat.id, f"Расписание на {month_to_str(month)} {year} для {get_master(master_id)}:\n\n{days_str}", reply_markup=generate_calendar(year, month))
+
+
+# Функция для отправки календаря пользователю
+@bot.callback_query_handler(func=lambda call: call.data.startswith('mstr_calendar'))
+def send_calendar(call, year=None, month=None):
+    global id_master_calendar
+    if call.data.startswith('mstr_calendar'):
+        id_master_calendar = call.data.split('#')[1]
+    today = date.today()
+    if not year:
+        year = today.year
+    if not month:
+        month = today.month
+    if id_master_calendar is not None:
+
+        days_list = get_calendar_for_month(id_master_calendar, year, month)
+        days_str = ""
+        if len(days_list) > 0:
+            for day, app in days_list.items():
+                date_obj = datetime.strptime(day, "%Y-%m-%d")
+                if (date_obj.day >= today.day and date_obj.month == today.month) or date_obj.month != today.month:
+                    days_str += f"{date_obj.day:02}.{date_obj.month:02} - "
+                    for a in app:
+                        days_str += f"{a}  "
+                    days_str += "\n\n"
+        else:
+            days_str = "Расписание не заполнено\n\n"
+
+        bot.edit_message_text(f"Расписание на {month_to_str(month)} {year} для {get_master(id_master_calendar)}:\n\n{days_str}",
+                                  call.message.chat.id, call.message.message_id,
+                                  reply_markup=generate_calendar(year, month))
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('calendar_'))
+def handle_callback(call):
+    global id_master_calendar
+    data = call.data.split('_')
+    today = date.today()
+    admin_is = is_admin(call.from_user.id)
+    master_is = is_master(call.from_user.id)
+
+    if master_is:
+        master_id = get_master_id(call.from_user.id)
+    else:
+        master_id = id_master_calendar
+
+    if data[1] == 'day' and admin_is:
+        day = int(data[2])
+        month = int(data[3])
+        year = int(data[4])
+        selected_date = date(year, month, day).strftime('%Y-%m-%d')
+        selected_date_d = datetime.strptime(selected_date, '%Y-%m-%d').date()
+
+        if selected_date_d >= today:
+            days_list = get_calendar_for_month(master_id, year, month)
+            days_str = ""
+            if days_list.get(selected_date) is not None:
+                days_str += f"{day:02}.{month:02}.{year} - "
+                for a in days_list.get(selected_date):
+                    days_str += f"{a}  "
+                days_str += "\n\n"
+            else:
+                days_str = "Расписание не заполнено\n\n"
+
+
+            bot.edit_message_text(f"{days_str}Выберите окна:", call.message.chat.id,
+                                      call.message.message_id,
+                                      reply_markup=options_appointments(call.message, selected_date, 'day'))
+
+    elif data[1] == 'month' and admin_is:
+        month = int(data[3])
+        year = int(data[2])
+        selected_date = date(year, month, 1).strftime('%Y-%m-%d')
+
+        days_list = get_calendar_for_month(master_id, year, month)
+        days_str = ""
+
+        days_in_month = get_dates_in_month(year, month)
+
+        if len(days_list) > 0:
+            for d in days_in_month:
+                date_obj = datetime.strptime(d, "%Y-%m-%d").date()
+                if date_obj >= today:
+                    if d in days_list:
+                        days_str += f"{date_obj.day:02}.{date_obj.month:02} - "
+                        for a in days_list[d]:
+                            days_str += f"{a} "
+                        days_str += "\n\n"
+        else:
+            days_str = "Расписание не заполнено\n\n"
+
+
+        bot.edit_message_text(f"Расписание на {month_to_str(month)} {year} для {get_master(master_id)}:\n\n{days_str}"
+                              f"Выберите окна:", call.message.chat.id,
+                              call.message.message_id,
+                              reply_markup=options_appointments(call.message, selected_date, 'month'))
+
+    elif data[1] == 'prev':
+        year = int(data[2])
+        month = int(data[3]) - 1
+
+        if month < today.month and year == today.year:
+            pass
+        else:
+            if month < 1:
+                month = 12
+                year -= 1
+
+            days_list = get_calendar_for_month(master_id, year, month)
+            days_str = ""
+
+            days_in_month = get_dates_in_month(year, month)
+
+            if len(days_list) > 0:
+                for d in days_in_month:
+                    date_obj = datetime.strptime(d, "%Y-%m-%d").date()
+                    if date_obj >= today:
+                        if d in days_list:
+                            days_str += f"{date_obj.day:02}.{date_obj.month:02} - "
+                            for a in days_list[d]:
+                                days_str += f"{a} "
+                            days_str += "\n\n"
+            else:
+                days_str = "Расписание не заполнено\n\n"
+
+            bot.edit_message_text(f"Расписание на {month_to_str(month)} {year} для {get_master(master_id)}:\n\n{days_str}",
+                                      call.message.chat.id, call.message.message_id,
+                                      reply_markup=generate_calendar(year, month))
+    elif data[1] == 'next':
+        year = int(data[2])
+        month = int(data[3]) + 1
+
+        if month > 12:
+            month = 1
+            year += 1
+
+        if month - today.month > 5 or month - today.month > -7:
+            pass
+        else:
+            days_list = get_calendar_for_month(master_id, year, month)
+            days_str = ""
+
+            days_in_month = get_dates_in_month(year, month)
+
+            if len(days_list) > 0:
+                for d in days_in_month:
+                    date_obj = datetime.strptime(d, "%Y-%m-%d").date()
+                    if date_obj >= today:
+                        if d in days_list:
+                            days_str += f"{date_obj.day:02}.{date_obj.month:02} - "
+                            for a in days_list[d]:
+                                days_str += f"{a} "
+                            days_str += "\n\n"
+            else:
+                days_str = "Расписание не заполнено\n\n"
+
+            bot.edit_message_text(f"Расписание на {month_to_str(month)} {year} для {get_master(master_id)}:\n\n{days_str}",
+                    call.message.chat.id, call.message.message_id,
+                    reply_markup=generate_calendar(year, month))
+
+
+    elif data[1] == 'ignore':
+        pass
+
+
+def master_panel_сalendar(message):
+    markup = InlineKeyboardMarkup()
+    masters = get_masters()
+    for master in masters:
+        master_btn = InlineKeyboardButton(text=master[1], callback_data="mstr_calendar#" + str(master[0]))
+        markup.add(master_btn)
+    if len(masters) == 0:
+        text = "Пока нельзя посмотреть расписание мастеров, так как список мастеров пуст."
+    else:
+        text = "Выберите мастера: "
+    gen_button = InlineKeyboardButton(text="В главное меню", callback_data="main")
+    markup.add(gen_button)
+    bot.send_message(message.chat.id, text, reply_markup=markup)
+
+
+def get_calendar_for_month(master_id, year, month):
+    days_in_month = get_dates_in_month(year, month)
+
+    cal_days = {}
+    for d in days_in_month:
+        free_app = []
+        for app in apps:
+            res = get_appointments(master_id, d, app)
+            res_client = get_appointments_client(master_id, d, app)
+            if res and res_client:
+                text = ''.join([char + '\u0336' for char in app]) + f" ({res_client})"
+                free_app.append(text)
+            elif res:
+                free_app.append(app)
+        if free_app:
+            cal_days[d] = free_app
+
+    return cal_days
+
+
+def options_appointments(message, date, str_key):
+    global id_master_calendar
+    date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+    markup = types.InlineKeyboardMarkup(row_width=len(apps))
+    buttons = [
+        types.InlineKeyboardButton(text=app, callback_data=f'select_{app}_{str_key}_{date}')
+        for app in apps
+    ]
+    markup.add(*buttons)
+    all_btn = types.InlineKeyboardButton(text=f'Все слоты',  callback_data=f'select_all_{str_key}_{date}')
+    back_btn = types.InlineKeyboardButton(text="Назад", callback_data=f"back_to_calendar#{date}")
+    add_btn = types.InlineKeyboardButton(text="Сохранить", callback_data=f'select_save_{str_key}_{date}')
+    markup.add(all_btn)
+    if str_key == 'month':
+        opt_btn = types.InlineKeyboardButton(text="Стандартное расписание Пн-Пт 9:00 - 18:00",
+                                             callback_data=f"opt_2_{id_master_calendar}_{get_master(id_master_calendar)}_{date_obj.year}_{date_obj.month}")
+        markup.add(opt_btn)
+    markup.add(back_btn)
+    markup.add(add_btn)
+    return markup
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('back_to_calendar'))
+def back_to_calendar(call):
+    date_back = call.data.split('#')[1]
+    date_obj_back = datetime.strptime(date_back, "%Y-%m-%d").date()
+    today = date.today()
+
+    days_list = get_calendar_for_month(id_master_calendar, date_obj_back.year, date_obj_back.month)
+    days_str = ""
+
+    days_in_month = get_dates_in_month(date_obj_back.year, date_obj_back.month)
+
+    if len(days_list) > 0:
+        for d in days_in_month:
+            date_obj = datetime.strptime(d, "%Y-%m-%d").date()
+            if date_obj >= today:
+                if d in days_list:
+                    days_str += f"{date_obj.day:02}.{date_obj.month:02} - "
+                    for a in days_list[d]:
+                        days_str += f"{a} "
+                    days_str += "\n\n"
+    else:
+        days_str = "Расписание не заполнено\n\n"
+
+    bot.edit_message_text(
+        f"Расписание на {month_to_str(date_obj_back.month)} {date_obj_back.year} для {get_master(id_master_calendar)}:\n\n{days_str}",
+        call.message.chat.id, call.message.message_id,
+        reply_markup=generate_calendar(date_obj_back.year, date_obj_back.month))
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('select_'))
+def create_appointments(call):
+    global selected_options
+    global id_master_calendar
+    option = call.data.split('_')[1]
+    str_key = call.data.split('_')[2]
+    date_app = call.data.split('_')[3]
+    today = date.today()
+    if option == 'save':
+        date_obj = datetime.strptime(date_app, "%Y-%m-%d")
+
+        set_apps = set(apps)
+        set_selected_options = set(selected_options.get(date_app, []))
+
+        not_selected = set_apps - set_selected_options
+        not_selected = list(not_selected)
+        print(f"{not_selected}")
+        if len(selected_options.get(date_app, [])) > 0:
+            for date_app, options in selected_options.items():
+                print(f"{selected_options.items()}")
+                if str_key == 'month':
+                    days_in_month = get_dates_in_month(date_obj.year, date_obj.month)
+                    for day in days_in_month:
+
+                       for option in options:
+                           res = get_appointments(id_master_calendar, day, option)
+                           if res:
+                               pass
+                           else:
+                               add_appointments(day, option, id_master_calendar)
+                               print(f"Добавлено date_app: {day} app: {option}")
+
+                       for opt in not_selected:
+                           app_res = get_appointments(id_master_calendar, day, opt)
+                           app_client = get_appointments_client(id_master_calendar, day, opt)
+                           if app_res and app_client:
+                               pass
+                           elif app_res:
+                               del_appointments(get_appointments_id(id_master_calendar, day, opt))
+                               print(f"Слот {day}: {opt} удален, т к НЕ занят клиентом")
+
+                elif str_key == 'day':
+                    for option in options:
+                        res = get_appointments(id_master_calendar, date_app, option)
+                        if res:
+                            pass
+                        else:
+                            add_appointments(date_app, option, id_master_calendar)
+                            print(f"Добавлено date_app: {date_app} app: {option}")
+
+                    for opt in not_selected:
+                        app_res = get_appointments(id_master_calendar, date_app, opt)
+                        app_client = get_appointments_client(id_master_calendar, date_app, opt)
+                        if app_res and app_client:
+                            print(f"Слот {date_app}: {opt} не удален, т к занят клиентом")
+                            pass
+                        elif app_res:
+                            del_appointments(get_appointments_id(id_master_calendar, date_app, opt))
+                            print(f"Слот {date_app}: {opt} удален, т к НЕ занят клиентом")
+
+        else:
+            if str_key == 'month':
+                days_in_month = get_dates_in_month(date_obj.year, date_obj.month)
+                for day in days_in_month:
+                    for opt in not_selected:
+                        app_res = get_appointments(id_master_calendar, day, opt)
+                        app_client = get_appointments_client(id_master_calendar, day, opt)
+                        if app_res and app_client:
+                            print(f"Слот {day}: {opt} не удален, т к занят клиентом")
+                            pass
+                        elif app_res:
+                            del_appointments(get_appointments_id(id_master_calendar, day, opt))
+                            print(f"Слот {day}: {opt} удален, т к НЕ занят клиентом")
+            elif str_key == 'day':
+                for opt in not_selected:
+                    app_res = get_appointments(id_master_calendar, date_app, opt)
+                    app_client = get_appointments_client(id_master_calendar, date_app, opt)
+                    if app_res and app_client:
+                        print(f"Слот {date_app}: {opt} не удален, т к занят клиентом")
+                        pass
+                    elif app_res:
+                        del_appointments(get_appointments_id(id_master_calendar, date_app, opt))
+                        print(f"Слот {date_app}: {opt} удален, т к НЕ занят клиентом")
+
+        days_list = get_calendar_for_month(id_master_calendar, date_obj.year, date_obj.month)
+        days_str = ""
+
+        days_in_month = get_dates_in_month(date_obj.year, date_obj.month)
+
+        if len(days_list) > 0:
+            for d in days_in_month:
+                date_obj_d = datetime.strptime(d, "%Y-%m-%d").date()
+                if date_obj_d >= today:
+                    if d in days_list:
+                        days_str += f"{date_obj_d.day:02}.{date_obj_d.month:02} - "
+                        for a in days_list[d]:
+                            days_str += f"{a} "
+                        days_str += "\n\n"
+        else:
+            days_str = "Расписание не заполнено\n\n"
+
+        bot.edit_message_text("Ок. Изменения сохранены.\n\n" + days_str, call.message.chat.id, call.message.message_id,
+                              reply_markup=generate_calendar(date_obj.year, date_obj.month))
+    elif option in selected_options.get(date_app, []):
+        selected_options.setdefault(date_app, []).remove(option)
+        bot.answer_callback_query(call.id, f'Выбор слота "{option} {date_app}" отменен.')
+        print("Опции - " + date_app + " " + str(selected_options.get(date_app, [])))
+    elif option == 'all':
+        if selected_options.get(date_app, []) == apps:
+            selected_options = {}
+            bot.answer_callback_query(call.id, f'Ни один слот не выбран')
+        else:
+            selected_options = {}
+            selected_options.setdefault(date_app, []).extend(apps)
+            bot.answer_callback_query(call.id, f'Выбраны все слоты')
+        print("Все слоты - " + date_app + " " + str(selected_options.get(date_app, [])))
+    else:
+        selected_options.setdefault(date_app, []).append(option)
+        bot.answer_callback_query(call.id, f'Выбран слот "{option} {date_app}"')
+        print("Опции - " + date_app + " " + str(selected_options.get(date_app, [])))
 
 
 ########################################################
