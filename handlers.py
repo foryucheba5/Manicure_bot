@@ -16,10 +16,12 @@ from db import is_admin, add_admin, add_master, add_service, add_service_master_
     get_service_info_by_service_master_price_id, get_user_info_by_id, get_appointment_id_by_params, \
     update_client_id_in_appointment, rename_user_info, get_user_id_by_telegram_id_show, \
     get_appointments_by_client_id_show, del_user, get_appointments, get_available_services_new, get_service_detail_new, \
-    get_unique_active_years_new, check_free_app_for_month_year, get_user_telegram_ids, del_master_serv, get_serv_master
+    get_unique_active_years_new, check_free_app_for_month_year, get_user_telegram_ids, del_master_serv, get_serv_master, \
+    delete_appointment, get_appointments_by_client_id_show_o, handle_cancellation, handle_confirmation, \
+    get_user_telegram_id_o, get_appointment_details
 
 #Токен телеграмм-ботаbot = telebot.TeleBot('токен_бота')
-bot = telebot.TeleBot('8025930490:AAES2tVXdWml4-DErkZTmS8t6ocA6eeyHGE')
+bot = telebot.TeleBot('7507424407:AAGb_7uu8r27CiYAw23qR2HfTCHpqO8e7Ww')
 url_master = 'https://t.me/nailove_manicure_bot?start=addMaster'
 name = None
 btn1 = types.KeyboardButton('Посмотреть окна записи')
@@ -388,6 +390,7 @@ def del_serv(message):
 @bot.message_handler(commands=['new_master'])
 def new_master(message):
     add_master('Гремли', '89108345322', '9890353291')
+    add_master('Илма', '89768345331', '7790773291')
 
 
 # Костыль на время
@@ -512,6 +515,7 @@ def show_services_client(message):
 
     appointments = get_appointments_by_client_id_show(client_id)  # Получаем записи для клиента
 
+
     if not appointments:
         no_services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(
             types.KeyboardButton('Вернуться в главное меню'))
@@ -522,7 +526,7 @@ def show_services_client(message):
     services_message = ""
     for index, appointment in enumerate(appointments, start=1):  # Добавляем индексацию записей
         appointment_date, appointment_time, service_name, price, client_name, master_name = appointment
-        services_message += (f"Запись {index}\n"
+        services_message += (f"Запись {index} - \n"
                             f"Услуга: {service_name}\n"
                             f"Мастер: {master_name}\n"
                             f"Стоимость: {price} руб.\n"
@@ -530,7 +534,8 @@ def show_services_client(message):
                             f"Время: {appointment_time}\n\n")  # Двойной перенос строки между записями
 
     services_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(
-        types.KeyboardButton('Вернуться в главное меню'))
+        types.KeyboardButton('Вернуться в главное меню'),
+        types.KeyboardButton('Отменить запись'))  # Добавили кнопку отмены записи
     bot.send_message(message.chat.id, services_message.strip(), reply_markup=services_keyboard)  # Убираем лишний пробел в конце
 
 
@@ -795,8 +800,19 @@ def generate_day_keyboard(telegram_id, year, month):
 
 
 # Генерация клавиатуры с временными интервалами
-def generate_time_keyboard(appointment_date):
-    available_times = get_available_times_for_date(appointment_date)
+def generate_time_keyboard(telegram_id,appointment_date):
+    # Извлекаем записи для данного telegram_id
+    records = data_storage.get(telegram_id, [])
+
+    if not records:
+        return None  # Или другой способ обработки отсутствия записей
+
+    # Берем первый элемент списка и извлекаем service_master_price_id
+    service_master_price_id = records[0].get('service_master_price_id')
+
+    if not service_master_price_id:
+        return None  # Или другой способ обработки отсутствия service_master_price_id
+    available_times = get_available_times_for_date(service_master_price_id, appointment_date)
 
     keyboard = []
     for time_slot in available_times:
@@ -968,7 +984,7 @@ def select_date(call):
         f"Выберите время {selected_date}:",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=generate_time_keyboard(selected_date)
+        reply_markup=generate_time_keyboard(call.message.chat.id, selected_date)
     )
 
 # Обработчик нажатия кнопок времени
@@ -1611,3 +1627,203 @@ def new_service_master_price(message):
 
 #
 
+###########################################################################
+# Отмена записи
+@bot.message_handler(func=lambda message: message.text == 'Отменить запись')
+def handle_cancel_appointment(message):
+    user_id = message.from_user.id
+    client_id = get_user_id_by_telegram_id(user_id)
+
+    if client_id is None:
+        bot.send_message(message.chat.id, "Пользователь не найден.")
+        return
+
+    appointments = get_appointments_by_client_id_show(client_id)
+
+
+    if not appointments:
+        bot.send_message(message.chat.id, "У вас нет активных записей.")
+        return
+
+    # Создаем клавиатуру с кнопками для выбора записи
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    buttons = []
+    for i in range(len(appointments)):
+        button = types.InlineKeyboardButton(text=f"Запись {i + 1}", callback_data=f'select_record_{i}')
+        buttons.append(button)
+    keyboard.add(*buttons)
+
+    bot.send_message(message.chat.id, "Выберите запись для отмены:", reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('select_record_'))
+def select_record_for_cancellation(call):
+    try:
+        user_id = call.from_user.id
+        client_id = get_user_id_by_telegram_id(user_id)
+        selected_index = int(call.data.split('_')[2])
+        appointments = get_appointments_by_client_id_show(client_id)
+
+
+
+        # Проверяем, что индекс записи находится в допустимом диапазоне
+        if selected_index < 0 or selected_index >= len(appointments):
+            raise IndexError("Индекс записи вне допустимого диапазона")
+
+        appointment_to_delete = appointments[selected_index]
+        appointment_date, appointment_time, service_name, price, client_name, master_name = appointment_to_delete
+
+        confirm_cancellation_text = (
+            f"Вы действительно хотите отменить запись?\n"
+            f"Услуга: {service_name}\n"
+            f"Мастер: {master_name}\n"
+            f"Стоимость: {price} руб.\n"
+            f"Дата: {appointment_date}\n"
+            f"Время: {appointment_time}"
+        )
+
+        markup = types.InlineKeyboardMarkup()
+        yes_button = types.InlineKeyboardButton(text="Да", callback_data=f'confirm1_cancel1_{selected_index}')
+        no_button = types.InlineKeyboardButton(text="Нет", callback_data='cansel1')
+        markup.add(yes_button, no_button)
+        bot.send_message(call.message.chat.id, confirm_cancellation_text, reply_markup=markup)
+
+    except (ValueError, IndexError) as e:
+        bot.answer_callback_query(call.id, text=f"Произошла ошибка: {e}. Попробуйте ещё раз.")
+
+
+# @bot.callback_query_handler(func=lambda call: True)
+# def handle_callback(call):
+#     if call.data.startswith('confirm1_cancel1_'):
+#         user_id = call.from_user.id
+#         client_id = get_user_id_by_telegram_id(user_id)
+#         selected_index = int(call.data.split('_')[2])
+#         appointments = get_appointments_by_client_id_show_o(client_id)
+#         appointment_to_delete = appointments[selected_index]
+#         print("yt")
+#         print(appointment_to_delete)
+#         print("yt")
+#         element_id = appointment_to_delete[0]
+#         delete_appointment(element_id)  # Удаление записи из базы данных
+#         bot.answer_callback_query(call.id, text="Запись успешно отменена!")
+#         bot.edit_message_text(chat_id=call.message.chat.id,
+#                               message_id=call.message.message_id,
+#                               text="Запись успешно отменена!",
+#                               parse_mode='HTML')
+#     elif call.data == 'cansel1':
+#         bot.answer_callback_query(call.id, text="Отмена записи отменена.")
+#         bot.edit_message_text(chat_id=call.message.chat.id,
+#                               message_id=call.message.message_id,
+#                               text="Отмена записи отменена.",
+#                               parse_mode='HTML')
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('confirm1_cancel1_'))
+def handle_confirm_or_cancel(call):
+    user_id = call.from_user.id
+    client_id = get_user_id_by_telegram_id(user_id)
+    selected_index = int(call.data.split('_')[2])
+    appointments = get_appointments_by_client_id_show_o(client_id)
+    appointment_to_delete = appointments[selected_index]
+    print("yt")
+    print(appointment_to_delete)
+    print("yt")
+    element_id = appointment_to_delete[0]
+    delete_appointment(element_id)  # Удаление записи из базы данных
+    bot.answer_callback_query(call.id, text="Запись успешно отменена!")
+    bot.edit_message_text(chat_id=call.message.chat.id,
+                            message_id=call.message.message_id,
+                            text="Запись успешно отменена!",
+                            parse_mode='HTML')
+
+
+@bot.callback_query_handler(func=lambda call: call.data == 'cansel1')
+def handle_cansel1(call):
+    bot.answer_callback_query(call.id, text="Отмена записи отменена.")
+    bot.edit_message_text(chat_id=call.message.chat.id,
+                          message_id=call.message.message_id,
+                          text="Отмена записи отменена.",
+                          parse_mode='HTML')
+
+
+###########################################################################
+
+
+
+
+###########################################################################
+# Оповещение о записи
+def send_warning_notification(appointments):
+    for appointment in appointments:
+        client_id = appointment[4]  # Предполагаем, что client_id хранится в 5-м столбце таблицы
+        telegram_id = get_user_telegram_id_o(client_id)
+        details = get_appointment_details(appointment[0])
+        if telegram_id is not None:
+            chat_id = telegram_id
+            keyboard = types.InlineKeyboardMarkup()
+            confirm_button = types.InlineKeyboardButton(text="Подтвердить", callback_data=f'confirm2_{appointment[0]}')
+            cancel_button = types.InlineKeyboardButton(text="Отменить", callback_data=f'cancel2_{appointment[0]}')
+            keyboard.add(confirm_button, cancel_button)
+
+
+            # Формируем сообщение на основе полученных деталей
+            message = f'''Предупреждение о записи:\nДата: {details['appointment_date']}\nВремя: {details['appointment_time']}\nУслуга: {details['service_name']}\nСтоимость: {details['price']}\nМастер: {details['master_name']}'''
+            bot.send_message(chat_id, message, reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda query: query.data.startswith('confirm2'))
+def handle_confirm2(query):
+    _, appointment_id = query.data.split('_', maxsplit=1)
+    bot.send_message(query.message.chat.id, "Спасибо за подтверждение записи, будем ждать вас!")
+    bot.send_message(5940230408, f"Клиент ({query.message.chat.id}) подтвердил запись!")
+
+
+@bot.callback_query_handler(func=lambda query: query.data.startswith('cancel2'))
+def handle_cancel2(query):
+    _, appointment_id = query.data.split('_', maxsplit=1)
+    keyboard = types.InlineKeyboardMarkup()
+    confirm_cancel_button = types.InlineKeyboardButton(
+        text="Да, отменить запись",
+        callback_data=f'confirm3_cancel_{appointment_id}'
+    )
+    decline_cancel_button = types.InlineKeyboardButton(
+        text="Нет, оставить запись. Подтверждаю её.",
+        callback_data=f'decline_cancel_{appointment_id}'
+    )
+    keyboard.row(confirm_cancel_button)
+    keyboard.row(decline_cancel_button)
+    bot.send_message(
+        chat_id=query.message.chat.id,
+        text="Вы уверены, что хотите отменить запись?",
+        reply_markup=keyboard
+    )
+    bot.answer_callback_query(query.id, text="Пожалуйста, выберите один из вариантов ниже:")
+
+
+@bot.callback_query_handler(func=lambda query: query.data.startswith('confirm3_cancel_'))
+def handle_confirm_cancel(query):
+    _, appointment_id_with_prefix = query.data.split('_', maxsplit=1)
+    appointment_id = int(appointment_id_with_prefix.replace('cancel_', ''))  # Убираем префикс 'cancel_'
+    delete_appointment(appointment_id)
+    bot.answer_callback_query(query.id, "Запись успешно отменена.")
+    bot.edit_message_text(
+        chat_id=query.message.chat.id,
+        message_id=query.message.message_id,
+        text="Запись успешно отменена."
+    )
+    bot.send_message(5940230408, f"Клиент ({query.message.chat.id}) отменил запись!")
+
+@bot.callback_query_handler(func=lambda query: query.data.startswith('decline_cancel_'))
+def handle_decline_cancel(query):
+    bot.answer_callback_query(query.id, "Спасибо за подтверждение записи, будем ждать вас!")
+    bot.edit_message_text(
+        chat_id=query.message.chat.id,
+        message_id=query.message.message_id,
+        text="Отмена записи отменена."
+    )
+    bot.send_message(5940230408, f"Клиент ({query.message.chat.id}) подтвердил запись!")
+
+
+
+
+
+###########################################################################

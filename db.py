@@ -1,7 +1,8 @@
 import sqlite3
-
-DB_NEW = 'nailBD_1_9.sql'
-
+import datetime
+import time
+DB_NEW = 'nailBD_new_pomena_2.sql'
+razn = 2
 # подключение БД и создание её
 def init_db():
     conn = sqlite3.connect(DB_NEW)
@@ -570,14 +571,14 @@ def get_service_master_price_id(service_id, name):
 #
 #     return sorted(unique_days)
 
-#получение доступных временных интервалов для конкретной даты
-def get_available_times_for_date(appointment_date):
-    conn = sqlite3.connect(DB_NEW)
-    cursor = conn.cursor()
-    cursor.execute(""" SELECT DISTINCT appointment_time FROM appointments WHERE IsActive = 1 AND appointment_date = ? """, (appointment_date,))
-    rows = cursor.fetchall()
-    available_times = [row[0] for row in rows]
-    return available_times
+# #получение доступных временных интервалов для конкретной даты
+# def get_available_times_for_date(appointment_date):
+#     conn = sqlite3.connect(DB_NEW)
+#     cursor = conn.cursor()
+#     cursor.execute(""" SELECT DISTINCT appointment_time FROM appointments WHERE IsActive = 1 AND appointment_date = ? """, (appointment_date,))
+#     rows = cursor.fetchall()
+#     available_times = [row[0] for row in rows]
+#     return available_times
 
 #проверка наличия пользователя в базе данных
 def is_user_in_database(user_id):
@@ -761,7 +762,15 @@ def get_available_services_new():
     # Запрашиваем активные записи из таблицы appointments
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
-    cursor.execute(""" SELECT DISTINCT s.service_id, s.service_name, s.description, s.price FROM appointments a JOIN service_master_price sm ON a.master_id = sm.master_id JOIN services s ON sm.service_id = s.service_id WHERE a.IsActive = 1 """)
+    now = datetime.now()
+    today = now.date()
+    two_days_ago = today + timedelta(days=razn)
+
+    cursor.execute(
+        """ SELECT DISTINCT s.service_id, s.service_name, s.description, s.price FROM appointments a JOIN service_master_price sm ON a.master_id = sm.master_id JOIN services s ON sm.service_id = s.service_id WHERE a.IsActive = 1 AND a.appointment_date > ?""",
+        (two_days_ago, )
+    )
+
     rows = cursor.fetchall()
     available_services = [{'id': row[0], 'name': row[1], 'description': row[2], 'price': row[3]} for row in rows]
     return available_services
@@ -771,9 +780,15 @@ def get_available_services_new():
 def get_service_detail_new(service_id):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
+
+    now = datetime.now()
+    today = now.date()
+    two_days_ago = today + timedelta(days=razn)
+
+
     cursor.execute(
-        """ SELECT DISTINCT u.name FROM service_master_price smp JOIN users u ON smp.master_id = u.id JOIN appointments a ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND smp.service_id = ? """,
-        (service_id,)
+        """ SELECT DISTINCT u.name FROM service_master_price smp JOIN users u ON smp.master_id = u.id JOIN appointments a ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND smp.service_id = ? AND a.appointment_date > ?""" ,
+        (service_id, two_days_ago)
     )
     rows = cursor.fetchall()
     masters = [name for name, in rows]
@@ -783,10 +798,18 @@ def get_service_detail_new(service_id):
 def get_unique_active_years_new(service_master_price_id):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
+
+
+    ###########
+    now = datetime.now()
+    today = now.date()
+    two_days_ago = today + timedelta(days=razn)
+
     cursor.execute(
-        """ SELECT DISTINCT strftime('%Y', a.appointment_date) AS year FROM appointments a JOIN service_master_price smp ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND smp.service_master_price_id = ? """,
-        (service_master_price_id,)
+        """ SELECT DISTINCT strftime('%Y', a.appointment_date) AS year FROM appointments a JOIN service_master_price smp ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND smp.service_master_price_id = ? AND a.appointment_date > ? """,
+        (service_master_price_id, two_days_ago)
     )
+    ##########
     rows = cursor.fetchall()
     unique_years = [int(row[0]) for row in rows]
     return sorted(unique_years)
@@ -795,10 +818,19 @@ def get_unique_active_years_new(service_master_price_id):
 def get_unique_months_in_year_new(service_master_price_id, year):
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
+
+    ###########
+    now = datetime.now()
+    today = now.date()
+    two_days_ago = today + timedelta(days=razn)
+
+
     cursor.execute(
-        """ SELECT DISTINCT strftime('%m', a.appointment_date) AS month FROM appointments a JOIN service_master_price smp ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND strftime('%Y', a.appointment_date) = ? AND smp.service_master_price_id = ? """,
-        (str(year), service_master_price_id)
+        """ SELECT DISTINCT strftime('%m', a.appointment_date) AS month FROM appointments a JOIN service_master_price smp ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND strftime('%Y', a.appointment_date) = ? AND smp.service_master_price_id = ? AND a.appointment_date > ?""",
+        (str(year), service_master_price_id, two_days_ago)
     )
+
+    ##########
     rows = cursor.fetchall()
     unique_months = [int(row[0]) for row in rows]
     return sorted(unique_months)
@@ -810,10 +842,21 @@ def get_unique_days_in_month_and_year_new(service_master_price_id, year, month):
     month = f"{int(month):02}"  # Месяцы передаются в формате MM
     conn = sqlite3.connect(DB_NEW)
     cursor = conn.cursor()
+
+    ###########
+    now = datetime.now()
+    print(now)
+    today = now.date()
+    two_days_ago = today + timedelta(days=razn)
+    print(two_days_ago)
+
+
     cursor.execute(
-        """ SELECT DISTINCT strftime('%d', a.appointment_date) AS day FROM appointments a JOIN service_master_price smp ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND strftime('%Y', a.appointment_date) = ? AND strftime('%m', a.appointment_date) = ? AND smp.service_master_price_id = ? """,
-        (year, month, service_master_price_id)
+        """ SELECT DISTINCT strftime('%d', a.appointment_date) AS day FROM appointments a JOIN service_master_price smp ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND strftime('%Y', a.appointment_date) = ? AND strftime('%m', a.appointment_date) = ? AND smp.service_master_price_id = ? AND a.appointment_date > ?""",
+        (year, month, service_master_price_id, two_days_ago)
     )
+
+    ##########
     rows = cursor.fetchall()
     unique_days = [int(row[0]) for row in rows]
 
@@ -875,5 +918,125 @@ def get_appointments_by_client_id_show(client_id):
 
     conn.close()
 
-#
+#############
+def delete_appointment(appointments_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
 
+    # Обновляем запись, устанавливая client_id, service_master_price_id в None и IsActive в 1
+    query = "UPDATE appointments SET client_id = ?, service_master_price_id = ?, IsActive = ? WHERE appointments_id = ?"
+    cursor.execute(query, (None, None, 1, appointments_id))
+
+    # Сохраняем изменения
+    conn.commit()
+
+    # Закрываем соединение
+    conn.close()
+
+
+def get_appointments_by_client_id_show_o(client_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+    query = """ SELECT a.appointments_id, a.appointment_date, a.appointment_time, s.service_name, s.price, u.name AS client_name, m.name AS master_name FROM appointments a JOIN service_master_price sm ON a.service_master_price_id = sm.service_master_price_id JOIN services s ON sm.service_id = s.service_id JOIN users u ON a.client_id = u.id JOIN users m ON sm.master_id = m.id WHERE a.client_id = ? """
+    cursor.execute(query, (client_id,))
+    results = cursor.fetchall()
+    print(results)
+    return results
+
+    conn.close()
+
+
+
+####################
+
+####################
+#получение доступных временных интервалов для конкретной даты
+def get_available_times_for_date(service_master_price_id, appointment_date):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+
+    now = datetime.now()
+    print(now)
+    today = now.date()
+    two_days_ago = today + timedelta(days=razn)
+    print(two_days_ago)
+
+    cursor.execute(""" SELECT DISTINCT appointment_time FROM appointments a JOIN service_master_price smp ON a.master_id = smp.master_id WHERE a.IsActive = 1 AND smp.service_master_price_id = ? AND a.appointment_date = ?""", (service_master_price_id, appointment_date))
+    rows = cursor.fetchall()
+    available_times = [row[0] for row in rows]
+    return available_times
+####################
+
+
+############################################################
+from datetime import datetime, timedelta
+# Оповещение о записи
+def find_upcoming_appointments_for_warning():
+    today = datetime.now().date()
+    warning_date = today + timedelta(days=razn)
+
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+
+    query = """SELECT * FROM appointments WHERE appointment_date = ? AND IsActive = 0"""
+    cursor.execute(query, (warning_date,))
+    results = cursor.fetchall()
+
+    conn.close()
+
+    return results
+
+
+def get_appointment_details(appointments_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+
+    query = ''' SELECT u.name AS master_name, s.service_name, s.price, a.appointment_date, a.appointment_time FROM appointments a JOIN users u ON a.master_id = u.id LEFT JOIN service_master_price sm ON a.service_master_price_id = sm.service_master_price_id LEFT JOIN services s ON sm.service_id = s.service_id WHERE a.appointments_id = ? '''
+    cursor.execute(query, (appointments_id,))
+    result = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if result:
+        master_name, service_name, price, appointment_date, appointment_time = result
+
+        # Преобразуем дату из строки в объект datetime и обратно в строку в нужном формате
+        formatted_date = datetime.strptime(appointment_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+
+        return {
+            'master_name': master_name,
+            'service_name': service_name,
+            'price': price,
+            'appointment_date': formatted_date,
+            'appointment_time': appointment_time
+        }
+    else:
+        return None
+
+
+
+
+def handle_confirmation(appointments_id):
+    print("Подтверждение")
+    pass
+
+
+def handle_cancellation(appointments_id):
+    print("Отказ")
+    pass
+
+
+def get_user_telegram_id_o(client_id):
+    conn = sqlite3.connect(DB_NEW)
+    cursor = conn.cursor()
+
+    query = """SELECT telegram_id FROM users WHERE id = ?"""
+    cursor.execute(query, (client_id,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if result is not None:
+        return result[0]
+    return None
+############################################################
