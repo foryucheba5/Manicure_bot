@@ -1718,6 +1718,7 @@ def generate_calendar(year, month):
     return markup
 
 
+# Календарь для мастера
 def send_calendar_master(message, user_id, year=None, month=None):
     global master_is
     global my_id_master
