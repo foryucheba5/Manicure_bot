@@ -50,11 +50,17 @@ apps = ["09:00-11:00", "11:00-13:00", "14:00-16:00", "16:00-18:00"]
 id_master_calendar = ''
 selected_options = {}
 
+master_is =''
+my_id_master = ''
+
 #главная менюшка на клавиатуре
 def main_panel(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     admin_is = is_admin(user_id)
+    global master_is
+    global my_id_master
     master_is = is_master(user_id)
+    my_id_master = get_master_id(user_id)
     # Создание кнопок
     if admin_is:
         markup.add(btn1)
@@ -1679,29 +1685,32 @@ def generate_calendar(year, month):
     ]
     markup.row(*row)
 
-    # Дни недели
-    weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-    row = []
-    for day in weekdays:
-        row.append(types.InlineKeyboardButton(day, callback_data='ignore'))
-    markup.row(*row)
-
-    # Пустые ячейки до первого дня месяца
-    cal = calendar.Calendar().monthdatescalendar(year, month)
-    first_week = cal[0]
-    offset = first_week[0].weekday()
-    for i in range(offset):
-        row.append(types.InlineKeyboardButton(' ', callback_data='ignore'))
-
-    # Добавляем дни
-    for week in cal:
+    if master_is:
+        pass
+    else:
+        # Дни недели
+        weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
         row = []
-        for day in week:
-            if day.month == month:
-                row.append(types.InlineKeyboardButton(str(day.day), callback_data=f'calendar_day_{day.day}_{month}_{year}'))
-            else:
-                row.append(types.InlineKeyboardButton(' ', callback_data='ignore'))
+        for day in weekdays:
+            row.append(types.InlineKeyboardButton(day, callback_data='ignore'))
         markup.row(*row)
+
+        # Пустые ячейки до первого дня месяца
+        cal = calendar.Calendar().monthdatescalendar(year, month)
+        first_week = cal[0]
+        offset = first_week[0].weekday()
+        for i in range(offset):
+            row.append(types.InlineKeyboardButton(' ', callback_data='ignore'))
+
+        # Добавляем дни
+        for week in cal:
+            row = []
+            for day in week:
+                if day.month == month:
+                    row.append(types.InlineKeyboardButton(str(day.day), callback_data=f'calendar_day_{day.day}_{month}_{year}'))
+                else:
+                    row.append(types.InlineKeyboardButton(' ', callback_data='ignore'))
+            markup.row(*row)
 
     gen_button = InlineKeyboardButton(text="В главное меню", callback_data="main")
     markup.add(gen_button)
@@ -1709,11 +1718,13 @@ def generate_calendar(year, month):
     return markup
 
 
+# Календарь для мастера
 def send_calendar_master(message, user_id, year=None, month=None):
-    master_is = is_master(user_id)
+    global master_is
+    global my_id_master
 
     if master_is:
-        master_id = get_master_id(user_id)
+        master_id = my_id_master
         today = date.today()
         if not year:
             year = today.year
@@ -1771,13 +1782,14 @@ def send_calendar(call, year=None, month=None):
 @bot.callback_query_handler(func=lambda call: call.data.startswith('calendar_'))
 def handle_callback(call):
     global id_master_calendar
+    global master_is
+    global my_id_master
     data = call.data.split('_')
     today = date.today()
     admin_is = is_admin(call.from_user.id)
-    master_is = is_master(call.from_user.id)
 
     if master_is:
-        master_id = get_master_id(call.from_user.id)
+        master_id = my_id_master
     else:
         master_id = id_master_calendar
 
