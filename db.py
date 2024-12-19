@@ -2,7 +2,7 @@ import sqlite3
 import datetime
 import time
 DB_NEW = 'nailBD.sql'
-razn = 2
+razn = 1
 
 
 # подключение БД и создание её

@@ -239,8 +239,8 @@ def is_valid_phone_number(phone_number):
 # Добавить админа - введите нужные данные шоб добавить себя и в боте введите команду /admin
 @bot.message_handler(commands=['admin'])
 def admin(message):
-    id = add_admin('Аня', '89005552146', message.from_user.id)
-    print("OK, " + str(id))
+    add_admin('Лиза', '89005552146', message.from_user.id)
+    print("add OK")
 
 
 @bot.message_handler(commands=['bez_master'])
