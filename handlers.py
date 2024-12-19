@@ -55,8 +55,6 @@ my_id_master = ''
 
 #главная менюшка на клавиатуре
 def main_panel(user_id):
-    del_user(1)
-    print("ok")
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     admin_is = is_admin(user_id)
     global master_is
